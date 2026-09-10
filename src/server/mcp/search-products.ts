@@ -1,6 +1,6 @@
 import { z, ZodError } from "zod";
 import { searchProducts } from "@/server/catalog/repository";
-
+import { dataResult, textResult } from "./responses";
 /** Agent-facing search options. Numbers and booleans, not query-string strings. */
 export const searchProductsInput = z.object({
   q: z.string().trim().max(200).default(""),
@@ -36,18 +36,18 @@ export const searchProductsTool = {
   inputSchema: searchProductsInput,
 };
 
-function textResult(text: string, isError = false) {
-  return { content: [{ type: "text" as const, text }], ...(isError ? { isError: true as const } : {}) };
-}
-
 export async function runSearchProductsTool(input: SearchProductsInput) {
   try {
-    return textResult(JSON.stringify(await searchProducts(toCatalogSearch(input))));
+    const filters = toCatalogSearch(input);
+    const results = await searchProducts(filters);
+    return dataResult(results);
   } catch (error) {
     if (error instanceof ZodError) {
-      return textResult(JSON.stringify({ error: "Invalid search parameters", issues: error.issues }), true);
+      return textResult(
+        JSON.stringify({ error: "Invalid search parameters", issues: error.issues }),
+        true,
+      );
     }
     return textResult("Catalog unavailable. Check database setup.", true);
   }
 }
-

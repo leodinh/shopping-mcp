@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { validateSnapshot } from "@/server/connectors/contract";
 import { minorUnits, searchSchema } from "@/shared/catalog-schema";
+import { searchProductsInput, toCatalogSearch } from "@/server/mcp/search-products";
 import { demoCatalog } from "@/server/demo/catalog";
 import { demoStores } from "@/shared/demo-stores";
 
@@ -31,4 +32,11 @@ test("demo API fixtures contain 3 merchants and 12 products including shared ext
   assert.equal(demoStores.length, 3);
   assert.equal(demoStores.flatMap((store) => demoCatalog(store.slug)!.products).length, 12);
   assert.equal(demoCatalog("missing"), null);
+});
+test("MCP search input maps to catalog query-string filters", () => {
+  const mapped = toCatalogSearch(searchProductsInput.parse({ q: "backpack", maxPrice: 100, inStock: true, limit: 5 }));
+  assert.deepEqual(mapped, {
+    q: "backpack", merchantId: undefined, currency: "USD", maxPrice: "100", inStock: "true", limit: 5, offset: 0,
+  });
+  assert.equal(searchSchema.safeParse(mapped).success, true);
 });

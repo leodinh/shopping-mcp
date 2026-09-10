@@ -6,7 +6,7 @@ The home page now shows only **Connect Your Store**, followed by that selected s
 
 The selected demo store is remembered in a 30-day HTTP-only cookie for this browser. This is a local demo preference, **not authentication or merchant authorization**. Existing seeded stores are not automatically shown before selection. Real seller identity and data isolation remain out of scope; do not deploy this unauthenticated app publicly.
 
-A locally runnable commerce core: Next.js App Router, TypeScript, PostgreSQL, three demo merchants, HTTP merchant connector, transactional product sync, and cross-merchant search. The name describes the eventual project; **there is no MCP server in this milestone**.
+A locally runnable commerce core: Next.js App Router, TypeScript, PostgreSQL, three demo merchants, HTTP merchant connector, transactional product sync, cross-merchant search, and an MCP server at `/api/mcp` with `search_products`.
 
 ## Local setup
 
@@ -67,6 +67,8 @@ curl 'http://127.0.0.1:3000/api/merchants'
 curl 'http://127.0.0.1:4001/stores/northline/products'
 ```
 
+The MCP endpoint is `http://127.0.0.1:3000/api/mcp`. The `search_products` tool accepts JSON numbers and booleans, translates them into the catalog search filters, and calls the same backend as `GET /api/products`.
+
 `GET /api/products` accepts `q` (up to 200 characters), optional `merchantId` (UUID), `currency` (uppercase, default USD), `maxPrice` (major units, non-negative, up to 2 decimals), `inStock` (`true`/`false`), `limit` (1–100, default 24), and `offset` (0–100000). Returns `{ products, total, limit, offset }`. Each product includes its merchant, stable internal ID, external ID, name, description, `priceMinor`, currency, images, inventory, product URL, and update time. Invalid filters return 400; database unavailability returns 503 without database details. Parameters use prepared SQL, not string interpolation.
 
 The UI focuses on demo USD inventory. The API supports currency filtering, not currency conversion. This milestone assumes currencies with two decimal minor units; zero-/three-decimal currency handling is out of scope. The local UI uses a Next.js Server Action to connect and sync only the three allowlisted demo stores. Arbitrary store URLs and credentials are not accepted. This action has no authentication: keep the app bound to localhost, never publish it as-is. CLI imports remain available.
@@ -74,8 +76,8 @@ The UI focuses on demo USD inventory. The API supports currency filtering, not c
 ## Architecture
 
 ```text
-Next.js page / read-only API ──> catalog + merchants ──> PostgreSQL
-                                                        ↑
+Next.js page / read-only API / MCP ──> catalog + merchants ──> PostgreSQL
+                                                              ↑
 sync CLI ──> sync service ──> connector interface ──> demo HTTP API
                  └──────── normalized snapshot ─────────┘
 ```
@@ -88,6 +90,7 @@ This is a **modular monolith**, not a distributed commerce backend. Application 
 - `src/server/sync`: imports and snapshot reconciliation; no framework dependency.
 - `src/server/demo`: deterministic external-store fixtures.
 - `src/server/db/client.ts`: pooled database access shared across development reloads.
+- `src/server/mcp`: MCP handler and tool adapters (`search_products` maps agent input onto catalog search).
 - `src/app`: seller status page, private `_components` and `_actions` folders, and read-only HTTP APIs.
 - `src/shared`: browser-safe catalog validation/types and demo store options. These files must not import backend code.
 - `scripts`: migration, seed, sync, and demo API entry points.
@@ -115,7 +118,7 @@ PostgreSQL maintains an English `tsvector` from product name and description, in
 
 ### Boundaries
 
-No NestJS, auth, MCP tools, checkout, payments, Shopify, WooCommerce, real merchant onboarding, public deployment, or external search service. The connection UI is for demo stores only. Do not expose this unauthenticated development app to the public internet. Connector responses are treated as untrusted data; only normalized validated values reach storage. No credentials belong in connection config in this milestone.
+No NestJS, auth, checkout, payments, Shopify, WooCommerce, real merchant onboarding, public deployment, or external search service. The connection UI is for demo stores only. Do not expose this unauthenticated development app to the public internet. Connector responses are treated as untrusted data; only normalized validated values reach storage. No credentials belong in connection config in this milestone.
 
 ## Troubleshooting
 

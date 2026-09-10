@@ -82,8 +82,8 @@ sync CLI ──> sync service ──> connector interface ──> demo HTTP API
 
 This is a **modular monolith**, not a distributed commerce backend. Application modules live in one Next.js project and share one database. The second process only simulates an external merchant for development; it is not an application microservice.
 
-- `src/server/catalog`: validated search, PostgreSQL full-text search and pagination.
-- `src/server/merchants`: merchant status/read model.
+- `src/server/catalog`: `product.entity.ts`, validated search, PostgreSQL full-text search and pagination.
+- `src/server/merchants`: `merchant.entity.ts`, `merchant-connection.entity.ts`, and the `MerchantStatus` read model.
 - `src/server/connectors`: normalized product contract, validation, registry, demo adapter.
 - `src/server/sync`: imports and snapshot reconciliation; no framework dependency.
 - `src/server/demo`: deterministic external-store fixtures.
@@ -95,7 +95,7 @@ This is a **modular monolith**, not a distributed commerce backend. Application 
 
 ### Data model
 
-`Merchant 1 — 1 MerchantConnection`, `Merchant 1 — N Product`.
+`Merchant 1 — 1 MerchantConnection`, `Merchant 1 — N Product`. Table shapes are declared as TypeScript entities next to their modules (`merchant.entity.ts`, `merchant-connection.entity.ts`, `product.entity.ts`). `MerchantStatus` and `CatalogProduct` are read models, not table rows.
 
 Merchant connections store connector type, non-secret configuration, enabled flag, last attempt/success times, and last error. One connection per merchant deliberately keeps ownership simple. Products have a unique `(merchant_id, external_id)` constraint, so different stores may reuse the same SKU without colliding. Money uses integer minor units, not floating-point storage. Inventory is a non-negative integer; unavailable products stay searchable unless `inStock=true`.
 

@@ -15,6 +15,7 @@ export function minorUnits(value: string): number {
   return Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
 }
 
+/** Search API DTO: product fields plus nested merchant. Not the Product row. */
 export type CatalogProduct = {
   id: string; externalId: string; name: string; description: string;
   priceMinor: number; currency: string; images: string[]; inventory: number;

@@ -1,6 +1,7 @@
-import { z, ZodError } from "zod";
+import { z } from "zod";
 import { searchProducts } from "@/server/catalog/repository";
-import { dataResult, textResult } from "./responses";
+import { catalogToolError, dataResult } from "./responses";
+
 /** Agent-facing search options. Numbers and booleans, not query-string strings. */
 export const searchProductsInput = z.object({
   q: z.string().trim().max(200).default(""),
@@ -31,23 +32,14 @@ export function toCatalogSearch(input: SearchProductsInput) {
 
 export const searchProductsTool = {
   title: "Search Products",
-  description:
-    "Search active products across connected merchants. Returns prices, availability, and merchant details.",
+  description: "Find products using keywords, price, merchant, and availability.",
   inputSchema: searchProductsInput,
 };
 
 export async function runSearchProductsTool(input: SearchProductsInput) {
   try {
-    const filters = toCatalogSearch(input);
-    const results = await searchProducts(filters);
-    return dataResult(results);
+    return dataResult(await searchProducts(toCatalogSearch(input)));
   } catch (error) {
-    if (error instanceof ZodError) {
-      return textResult(
-        JSON.stringify({ error: "Invalid search parameters", issues: error.issues }),
-        true,
-      );
-    }
-    return textResult("Catalog unavailable. Check database setup.", true);
+    return catalogToolError(error);
   }
 }

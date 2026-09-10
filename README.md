@@ -1,4 +1,4 @@
-# Shopping MCP — Milestone 1
+# Shopping MCP
 
 ### Seller UI
 
@@ -43,18 +43,18 @@ Create an empty `shopping-mcp` database and set `DATABASE_URL` in `.env`. Includ
 
 ESLint checks code quality; Prettier handles formatting. `eslint-config-prettier` disables conflicting stylistic lint rules. Generated output, environment files, and generated agent instructions are excluded from formatting.
 
-| Command | Purpose |
-| --- | --- |
-| `npm run dev` | Next.js and demo API together; Ctrl+C stops both |
-| `npm run db:migrate` | Apply outstanding SQL migrations transactionally |
-| `npm run db:seed` | Idempotently seed merchant identities/connections |
-| `npm run sync` | Import all enabled merchant connections |
-| `npm run sync -- northline` | Import one merchant |
-| `npm test` | Contract, fixture, and input validation tests; no database |
-| `npm run test:integration` | Real PostgreSQL lifecycle tests; migrate first |
-| `npm run typecheck` | TypeScript validation |
-| `npm run build` | Production Next.js build |
-| `npm start` | Serve production build; run `npm run demo` separately for sync |
+| Command                     | Purpose                                                        |
+| --------------------------- | -------------------------------------------------------------- |
+| `npm run dev`               | Next.js and demo API together; Ctrl+C stops both               |
+| `npm run db:migrate`        | Apply outstanding SQL migrations transactionally               |
+| `npm run db:seed`           | Idempotently seed merchant identities/connections              |
+| `npm run sync`              | Import all enabled merchant connections                        |
+| `npm run sync -- northline` | Import one merchant                                            |
+| `npm test`                  | Contract, fixture, and input validation tests; no database     |
+| `npm run test:integration`  | Real PostgreSQL lifecycle tests; migrate first                 |
+| `npm run typecheck`         | TypeScript validation                                          |
+| `npm run build`             | Production Next.js build                                       |
+| `npm start`                 | Serve production build; run `npm run demo` separately for sync |
 
 Integration tests create uniquely named test merchants and remove only their own records. Never run local tooling against a production database. Seeding does not delete existing products or re-enable disabled connections. Repeating setup/sync does not duplicate products.
 
@@ -67,7 +67,14 @@ curl 'http://127.0.0.1:3000/api/merchants'
 curl 'http://127.0.0.1:4001/stores/northline/products'
 ```
 
-The MCP endpoint is `http://127.0.0.1:3000/api/mcp`. The `search_products` tool accepts JSON numbers and booleans, translates them into the catalog search filters, and calls the same backend as `GET /api/products`.
+The MCP endpoint is `http://127.0.0.1:3000/api/mcp`. Tools call catalog functions; they do not query SQL directly.
+
+| Tool               | Backend             | Purpose                                                                                                |
+| ------------------ | ------------------- | ------------------------------------------------------------------------------------------------------ |
+| `search_products`  | `searchProducts()`  | Find products using keywords, price, merchant, and availability                                        |
+| `get_product`      | `getProductById()`  | Retrieve one product by its internal ID                                                                |
+| `compare_products` | `compareProducts()` | Retrieve consistent details for 2–5 products so an assistant can explain differences                   |
+| `get_checkout`     | `getCheckout()`     | Look up a merchant checkout URL; demo stores return `supported: false` until a real integration exists |
 
 `GET /api/products` accepts `q` (up to 200 characters), optional `merchantId` (UUID), `currency` (uppercase, default USD), `maxPrice` (major units, non-negative, up to 2 decimals), `inStock` (`true`/`false`), `limit` (1–100, default 24), and `offset` (0–100000). Returns `{ products, total, limit, offset }`. Each product includes its merchant, stable internal ID, external ID, name, description, `priceMinor`, currency, images, inventory, product URL, and update time. Invalid filters return 400; database unavailability returns 503 without database details. Parameters use prepared SQL, not string interpolation.
 
@@ -90,7 +97,7 @@ This is a **modular monolith**, not a distributed commerce backend. Application 
 - `src/server/sync`: imports and snapshot reconciliation; no framework dependency.
 - `src/server/demo`: deterministic external-store fixtures.
 - `src/server/db/client.ts`: pooled database access shared across development reloads.
-- `src/server/mcp`: MCP handler and tool adapters (`search_products` maps agent input onto catalog search).
+- `src/server/mcp`: MCP handler and tool adapters. Each tool maps agent input onto a catalog function.
 - `src/app`: seller status page, private `_components` and `_actions` folders, and read-only HTTP APIs.
 - `src/shared`: browser-safe catalog validation/types and demo store options. These files must not import backend code.
 - `scripts`: migration, seed, sync, and demo API entry points.

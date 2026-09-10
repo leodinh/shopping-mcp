@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { syncConnection } from "@/server/sync/service";
-import { searchProducts } from "@/server/catalog/repository";
+import { searchProducts, getProductById, compareProducts, getCheckout } from "@/server/catalog/repository";
 import type { MerchantConnector, NormalizedProduct } from "@/server/connectors/contract";
 
 test("PostgreSQL sync and search lifecycle", async () => {
@@ -28,7 +28,18 @@ test("PostgreSQL sync and search lifecycle", async () => {
     const initial = await searchProducts({ q: "black backpack", merchantId: merchantIds[0], maxPrice: "100" }, pool);
     assert.equal(initial.total, 1);
     const stableId = initial.products[0].id;
-    assert.equal((await searchProducts({ q: "black backpack" }, pool)).products.filter((product) => merchantIds.includes(product.merchant.id)).length, 2);
+    assert.equal((await getProductById(stableId, pool))?.id, stableId);
+    assert.equal(await getProductById(randomUUID(), pool), null);
+    const pair = (await searchProducts({ q: "black backpack" }, pool)).products.filter((product) => merchantIds.includes(product.merchant.id));
+    assert.equal(pair.length, 2);
+    const compared = await compareProducts([pair[0].id, pair[1].id], pool);
+    assert.equal(compared.products.length, 2);
+    assert.deepEqual(compared.missingIds, []);
+    assert.equal((await compareProducts([pair[0].id, randomUUID()], pool)).missingIds.length, 1);
+    const checkout = await getCheckout(stableId, pool);
+    assert.equal(checkout?.supported, false);
+    assert.equal(checkout?.checkoutUrl, null);
+    assert.equal(checkout?.productUrl, initial.products[0].productUrl);
     snapshot = [{ ...snapshot[0], priceMinor: 9900, inventory: 0 }];
     await syncConnection(connections[0], pool, connector);
     const updated = await searchProducts({ merchantId: merchantIds[0] }, pool);

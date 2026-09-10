@@ -1,8 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { ZodError } from "zod";
 import { validateSnapshot } from "@/server/connectors/contract";
 import { minorUnits, searchSchema } from "@/shared/catalog-schema";
+import { compareProducts, getProductById } from "@/server/catalog/repository";
 import { searchProductsInput, toCatalogSearch } from "@/server/mcp/search-products";
+import { compareProductsInput } from "@/server/mcp/compare-products";
 import { demoCatalog } from "@/server/demo/catalog";
 import { demoStores } from "@/shared/demo-stores";
 
@@ -39,4 +43,13 @@ test("MCP search input maps to catalog query-string filters", () => {
     q: "backpack", merchantId: undefined, currency: "USD", maxPrice: "100", inStock: "true", limit: 5, offset: 0,
   });
   assert.equal(searchSchema.safeParse(mapped).success, true);
+});
+test("compare and get-product reject invalid IDs before querying", async () => {
+  const id = randomUUID();
+  await assert.rejects(() => getProductById("not-a-uuid"), ZodError);
+  await assert.rejects(() => compareProducts([id]), ZodError);
+  await assert.rejects(() => compareProducts([id, id]), ZodError);
+  await assert.rejects(() => compareProducts([id.toUpperCase(), id]), ZodError);
+  await assert.rejects(() => compareProducts([...Array.from({ length: 6 }, () => randomUUID())]), ZodError);
+  assert.equal(compareProductsInput.safeParse({ productIds: [id, randomUUID()] }).success, true);
 });

@@ -24,3 +24,11 @@
     @apply outline-3 outline-offset-3 outline-focus;
   }
 }
+
+@utility btn {
+  @apply min-h-11 cursor-pointer rounded-sm border border-ink bg-ink px-6 text-sm text-white hover:bg-ink-hover disabled:cursor-wait disabled:opacity-60;
+}
+
+@utility field {
+  @apply min-h-11 rounded-sm border border-input bg-transparent px-3 text-sm text-ink;
+}

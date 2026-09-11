@@ -1,13 +1,15 @@
-export type ConnectorType = "demo";
+export type ConnectorType = "demo" | "shopify";
 
 export type DemoConnectionConfig = { storeSlug: string };
+export type ShopifyConnectionConfig = { shop: string };
+export type ConnectionConfig = DemoConnectionConfig | ShopifyConnectionConfig;
 
-/** One connection per merchant. */
+/** One connection per merchant. Shopify credentials live in credentials_encrypted, not config. */
 export type MerchantConnection = {
   id: string;
   merchantId: string;
   connectorType: ConnectorType;
-  config: DemoConnectionConfig;
+  config: ConnectionConfig;
   enabled: boolean;
   lastSyncedAt: Date | null;
   lastAttemptAt: Date | null;

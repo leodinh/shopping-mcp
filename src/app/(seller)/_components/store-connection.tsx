@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { demoStores } from "@/shared/demo-stores";
-import { connectStoreAction } from "@/app/_actions/store";
+import { connectStoreAction } from "@/app/(seller)/_actions/store";
 
 type StoreStatus = {
   id: string;
@@ -14,10 +14,6 @@ type StoreStatus = {
   lastError: string | null;
   productCount: number;
 };
-
-const field = "min-h-11 rounded-sm border border-input bg-transparent px-3 text-sm text-ink";
-const button =
-  "min-h-11 cursor-pointer rounded-sm border border-ink bg-ink px-6 text-sm text-white hover:bg-ink-hover disabled:cursor-wait disabled:opacity-60";
 
 export function StoreConnections({ merchant }: { merchant: StoreStatus | null }) {
   const [expanded, setExpanded] = useState(false);
@@ -71,7 +67,7 @@ export function StoreConnections({ merchant }: { merchant: StoreStatus | null })
           </div>
           <form action={action}>
             <input type="hidden" name="storeSlug" value={connected.slug} />
-            <button className={button} disabled={pending}>
+            <button className="btn" disabled={pending}>
               {pending ? "Syncing…" : connected.lastError ? "Retry sync" : "Sync now"}
             </button>
           </form>
@@ -84,7 +80,7 @@ export function StoreConnections({ merchant }: { merchant: StoreStatus | null })
           </p>
           <button
             type="button"
-            className={`${button} mt-5`}
+            className="btn mt-5"
             aria-expanded={expanded}
             aria-controls="store-picker"
             onClick={() => setExpanded(!expanded)}
@@ -105,7 +101,7 @@ export function StoreConnections({ merchant }: { merchant: StoreStatus | null })
                   <select
                     id="store-slug"
                     name="storeSlug"
-                    className={`${field} w-full min-w-0 sm:min-w-64`}
+                    className="field w-full min-w-0 sm:min-w-64"
                     disabled={pending}
                     required
                   >
@@ -116,7 +112,7 @@ export function StoreConnections({ merchant }: { merchant: StoreStatus | null })
                     ))}
                   </select>
                 </label>
-                <button className={button} disabled={pending}>
+                <button className="btn" disabled={pending}>
                   {pending ? "Connecting…" : "Connect store"}
                 </button>
               </form>

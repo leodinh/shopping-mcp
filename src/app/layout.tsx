@@ -3,13 +3,15 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Shopping MCP · Commerce Core",
-  description: "A local, cross-merchant catalog. Milestone 1 of Shopping MCP.",
+  description: "A cross-merchant catalog.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className="m-0 bg-paper font-sans text-ink">
+        <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">{children}</main>
+      </body>
     </html>
   );
 }

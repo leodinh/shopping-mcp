@@ -5,7 +5,7 @@ import { StoreConnections } from "@/app/(seller)/_components/store-connection";
 
 export const dynamic = "force-dynamic";
 
-export default async function Home() {
+export default async function Agent() {
   const slug = (await cookies()).get("demo-store")?.value ?? null;
   let merchant = null;
   try {
@@ -13,10 +13,10 @@ export default async function Home() {
   } catch {
     return (
       <section className="py-9 sm:pt-14 sm:pb-9">
-        <h1 className="my-6 text-4xl font-medium leading-tight tracking-tight sm:text-6xl">
+        <h1 className="my-6 text-headline font-semibold text-heading sm:text-headline-lg">
           Store status unavailable.
         </h1>
-        <p className="text-sm leading-relaxed text-muted">
+        <p className="text-intro text-muted sm:text-intro-lg">
           Check your database connection and try again.
         </p>
         <Link href="/" className="underline underline-offset-4">

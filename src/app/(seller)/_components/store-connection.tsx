@@ -20,28 +20,32 @@ export function StoreConnections({ merchant }: { merchant: StoreStatus | null })
   const [state, action, pending] = useActionState(connectStoreAction, { message: "", ok: false });
   const connected = merchant?.connectionId ? merchant : null;
   return (
-    <section className="py-10 sm:py-18" aria-label="Your store" aria-busy={pending}>
+    <section className="px-5 py-10 sm:px-12 sm:py-18" aria-label="Your store" aria-busy={pending}>
       {connected ? (
         <>
-          <p className="text-xs font-bold tracking-widest">YOUR STORE</p>
-          <h1 className="my-6 text-4xl font-medium tracking-tight sm:text-5xl">{connected.name}</h1>
-          <div className="my-8 grid grid-cols-1 gap-8 rounded-md border border-line bg-card p-8 sm:grid-cols-2">
+          <p className="text-label font-medium">YOUR STORE</p>
+          <h1 className="my-6 text-headline font-semibold text-heading sm:text-headline-lg">
+            {connected.name}
+          </h1>
+          <div className="my-8 grid grid-cols-1 gap-8 border border-line bg-card p-8 sm:grid-cols-2">
             <div>
-              <span className="mb-3 block text-xs text-muted">Connection</span>
+              <span className="mb-3 block text-label font-medium text-muted">Connection</span>
               <strong
-                className={`text-xl font-medium ${connected.enabled ? "text-stock" : "text-sold-out"}`}
+                className={`text-card-heading font-semibold sm:text-card-heading-lg ${connected.enabled ? "text-stock" : "text-sold-out"}`}
               >
                 {connected.enabled ? "Connected" : "Disabled"}
               </strong>
             </div>
             <div>
-              <span className="mb-3 block text-xs text-muted">Products</span>
-              <strong className="text-xl font-medium">{connected.productCount}</strong>
+              <span className="mb-3 block text-label font-medium text-muted">Products</span>
+              <strong className="text-card-heading font-semibold sm:text-card-heading-lg">
+                {connected.productCount}
+              </strong>
             </div>
             <div>
-              <span className="mb-3 block text-xs text-muted">Sync status</span>
+              <span className="mb-3 block text-label font-medium text-muted">Sync status</span>
               <strong
-                className={`text-xl font-medium ${connected.lastError ? "text-sold-out" : "text-stock"}`}
+                className={`text-card-heading font-semibold sm:text-card-heading-lg ${connected.lastError ? "text-sold-out" : "text-stock"}`}
               >
                 {pending
                   ? "Syncing…"
@@ -53,10 +57,10 @@ export function StoreConnections({ merchant }: { merchant: StoreStatus | null })
               </strong>
             </div>
             <div>
-              <span className="mb-3 block text-xs text-muted">Last synced</span>
-              <strong className="text-xl font-medium">
+              <span className="mb-3 block text-label font-medium text-muted">Last synced</span>
+              <strong className="text-card-heading font-semibold sm:text-card-heading-lg">
                 {connected.lastSyncedAt ? (
-                  <time className="text-base" dateTime={connected.lastSyncedAt}>
+                  <time className="text-base font-normal" dateTime={connected.lastSyncedAt}>
                     {connected.lastSyncedAt.slice(0, 16).replace("T", " ")} UTC
                   </time>
                 ) : (
@@ -74,8 +78,10 @@ export function StoreConnections({ merchant }: { merchant: StoreStatus | null })
         </>
       ) : (
         <>
-          <h1 className="my-6 text-4xl font-medium tracking-tight sm:text-5xl">Connect your store.</h1>
-          <p className="text-sm leading-relaxed text-muted">
+          <h1 className="my-6 text-headline font-semibold text-heading sm:text-headline-lg">
+            Connect your store.
+          </h1>
+          <p className="text-intro text-muted sm:text-intro-lg">
             Bring in your products and keep track of your sync status.
           </p>
           <button
@@ -88,15 +94,12 @@ export function StoreConnections({ merchant }: { merchant: StoreStatus | null })
             Connect Your Store
           </button>
           {expanded && (
-            <div id="store-picker" className="mt-5 rounded bg-picker p-6">
+            <div id="store-picker" className="mt-5 bg-picker p-6">
               <form
                 action={action}
                 className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-end"
               >
-                <label
-                  htmlFor="store-slug"
-                  className="flex flex-col gap-2 text-xs font-semibold"
-                >
+                <label htmlFor="store-slug" className="flex flex-col gap-2 text-label font-medium">
                   Demo store
                   <select
                     id="store-slug"
@@ -123,11 +126,11 @@ export function StoreConnections({ merchant }: { merchant: StoreStatus | null })
       <div
         role="status"
         aria-live="polite"
-        className={`my-4 text-xs leading-relaxed ${state.ok ? "text-stock" : "text-sold-out"}`}
+        className={`my-4 text-label font-medium ${state.ok ? "text-stock" : "text-sold-out"}`}
       >
         {pending ? "Syncing your products…" : state.message}
       </div>
-      <p className="mt-8 text-xs text-muted">
+      <p className="mt-8 text-base text-muted">
         Demo connection · real store integrations coming later.
       </p>
     </section>

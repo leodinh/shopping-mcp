@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { Pool } from "pg";
 import { database } from "@/server/db/client";
 import { requireSession } from "@/server/auth/session";
+import { ensureMerchantForShop } from "@/server/merchants/service";
 import type { OAuthAttempt } from "./oauth-attempt.entity";
 
 const SHOP_DOMAIN = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
@@ -46,13 +47,21 @@ export async function startShopifyConnect(
   return { authorizationUrl: shopifyAuthorizeUrl(normalized, state) };
 }
 
+function hasSessionCookie(cookieHeader: string | null) {
+  return /(?:^|;\s*)session=/.test(cookieHeader ?? "");
+}
+
 export async function handleShopifyConnect(request: Request, pool: Pool = database()) {
   try {
-    const merchantId = await requireSession(request.headers.get("cookie"), pool);
+    const cookieHeader = request.headers.get("cookie");
     const body = (await request.json().catch(() => ({}))) as { shop?: unknown };
+    const shop = normalizeShopDomain(body.shop);
+    const merchantId = hasSessionCookie(cookieHeader)
+      ? await requireSession(cookieHeader, pool)
+      : await ensureMerchantForShop(shop, pool);
     const browserBinding = randomBytes(16).toString("hex");
     const response = Response.json(
-      await startShopifyConnect(body.shop, merchantId, browserBinding, pool),
+      await startShopifyConnect(shop, merchantId, browserBinding, pool),
     );
     response.headers.append(
       "set-cookie",

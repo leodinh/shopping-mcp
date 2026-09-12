@@ -1,14 +1,13 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { demoStores } from "@/shared/demo-stores";
-import { connectStoreAction } from "@/app/(seller)/_actions/store";
+import { useState, type FormEvent } from "react";
 
 type StoreStatus = {
   id: string;
   slug: string;
   name: string;
   connectionId: string | null;
+  connectorType: "demo" | "shopify" | null;
   enabled: boolean | null;
   lastSyncedAt: string | null;
   lastError: string | null;
@@ -16,9 +15,34 @@ type StoreStatus = {
 };
 
 export function StoreConnections({ merchant }: { merchant: StoreStatus | null }) {
-  const [expanded, setExpanded] = useState(false);
-  const [state, action, pending] = useActionState(connectStoreAction, { message: "", ok: false });
+  const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState("");
   const connected = merchant?.connectionId ? merchant : null;
+
+  async function connectShopify(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPending(true);
+    setMessage("");
+    const shop = String(new FormData(event.currentTarget).get("shop") ?? "");
+    try {
+      const response = await fetch("/api/shopify/connect", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ shop }),
+      });
+      const payload = (await response.json()) as { authorizationUrl?: string; error?: string };
+      if (!response.ok || !payload.authorizationUrl) {
+        setMessage(payload.error || "Could not start Shopify connection.");
+        setPending(false);
+        return;
+      }
+      window.location.assign(payload.authorizationUrl);
+    } catch {
+      setMessage("Could not start Shopify connection.");
+      setPending(false);
+    }
+  }
+
   return (
     <section className="px-5 py-10 sm:px-12 sm:py-18" aria-label="Your store" aria-busy={pending}>
       {connected ? (
@@ -33,7 +57,11 @@ export function StoreConnections({ merchant }: { merchant: StoreStatus | null })
               <strong
                 className={`text-card-heading font-semibold sm:text-card-heading-lg ${connected.enabled ? "text-stock" : "text-sold-out"}`}
               >
-                {connected.enabled ? "Connected" : "Disabled"}
+                {connected.enabled
+                  ? connected.connectorType === "shopify"
+                    ? "Shopify connected ✓"
+                    : "Connected"
+                  : "Disabled"}
               </strong>
             </div>
             <div>
@@ -47,13 +75,11 @@ export function StoreConnections({ merchant }: { merchant: StoreStatus | null })
               <strong
                 className={`text-card-heading font-semibold sm:text-card-heading-lg ${connected.lastError ? "text-sold-out" : "text-stock"}`}
               >
-                {pending
-                  ? "Syncing…"
-                  : connected.lastError
-                    ? "Sync failed"
-                    : connected.lastSyncedAt
-                      ? "Synced"
-                      : "Awaiting sync"}
+                {connected.lastError
+                  ? "Sync failed"
+                  : connected.lastSyncedAt
+                    ? "Synced"
+                    : "Awaiting sync"}
               </strong>
             </div>
             <div>
@@ -69,12 +95,6 @@ export function StoreConnections({ merchant }: { merchant: StoreStatus | null })
               </strong>
             </div>
           </div>
-          <form action={action}>
-            <input type="hidden" name="storeSlug" value={connected.slug} />
-            <button className="btn" disabled={pending}>
-              {pending ? "Syncing…" : connected.lastError ? "Retry sync" : "Sync now"}
-            </button>
-          </form>
         </>
       ) : (
         <>
@@ -82,57 +102,34 @@ export function StoreConnections({ merchant }: { merchant: StoreStatus | null })
             Connect your store.
           </h1>
           <p className="text-intro text-muted sm:text-intro-lg">
-            Bring in your products and keep track of your sync status.
+            Enter your Shopify domain to connect products and keep track of sync status.
           </p>
-          <button
-            type="button"
-            className="btn mt-5"
-            aria-expanded={expanded}
-            aria-controls="store-picker"
-            onClick={() => setExpanded(!expanded)}
+          <form
+            onSubmit={connectShopify}
+            className="mt-8 flex flex-col items-stretch gap-4 sm:flex-row sm:items-end"
           >
-            Connect Your Store
-          </button>
-          {expanded && (
-            <div id="store-picker" className="mt-5 bg-picker p-6">
-              <form
-                action={action}
-                className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-end"
-              >
-                <label htmlFor="store-slug" className="flex flex-col gap-2 text-label font-medium">
-                  Demo store
-                  <select
-                    id="store-slug"
-                    name="storeSlug"
-                    className="field w-full min-w-0 sm:min-w-64"
-                    disabled={pending}
-                    required
-                  >
-                    {demoStores.map((store) => (
-                      <option key={store.slug} value={store.slug}>
-                        {store.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <button className="btn" disabled={pending}>
-                  {pending ? "Connecting…" : "Connect store"}
-                </button>
-              </form>
-            </div>
-          )}
+            <label htmlFor="shop-domain" className="flex flex-col gap-2 text-label font-medium">
+              Shopify domain
+              <input
+                id="shop-domain"
+                name="shop"
+                className="field w-full min-w-0 sm:min-w-64"
+                placeholder="your-store.myshopify.com"
+                autoComplete="off"
+                spellCheck={false}
+                disabled={pending}
+                required
+              />
+            </label>
+            <button className="btn" disabled={pending}>
+              {pending ? "Connecting…" : "Connect Shopify"}
+            </button>
+          </form>
         </>
       )}
-      <div
-        role="status"
-        aria-live="polite"
-        className={`my-4 text-label font-medium ${state.ok ? "text-stock" : "text-sold-out"}`}
-      >
-        {pending ? "Syncing your products…" : state.message}
+      <div role="status" aria-live="polite" className="my-4 text-label font-medium text-sold-out">
+        {message}
       </div>
-      <p className="mt-8 text-base text-muted">
-        Demo connection · real store integrations coming later.
-      </p>
     </section>
   );
 }

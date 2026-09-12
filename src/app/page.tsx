@@ -25,7 +25,7 @@ export default function Home() {
           label="For store owners"
           title="Reach shoppers through AI."
           href="/seller"
-          action="Connect Your Store →"
+          action="Connect Shopify →"
         >
           Help AI assistants discover your products and connect shoppers with your store.
         </AudienceCard>

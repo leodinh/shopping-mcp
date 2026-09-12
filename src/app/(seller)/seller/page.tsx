@@ -1,15 +1,20 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
-import { listMerchants } from "@/server/merchants/repository";
+import { getDashboardMerchant } from "@/server/merchants/repository";
 import { StoreConnections } from "@/app/(seller)/_components/store-connection";
 
 export const dynamic = "force-dynamic";
 
 export default async function Agent() {
-  const slug = (await cookies()).get("demo-store")?.value ?? null;
   let merchant = null;
   try {
-    if (slug) merchant = (await listMerchants(slug))[0] ?? null;
+    merchant = await getDashboardMerchant(
+      (await cookies())
+        .getAll()
+        .map((cookie) => `${cookie.name}=${cookie.value}`)
+        .join("; ") || null,
+    );
+    console.log("getDashboardMerchant", merchant);
   } catch {
     return (
       <section className="py-9 sm:pt-14 sm:pb-9">

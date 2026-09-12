@@ -4,6 +4,7 @@ export type MerchantStatus = {
   slug: string;
   name: string;
   connectionId: string | null;
+  connectorType: "demo" | "shopify" | null;
   enabled: boolean | null;
   lastSyncedAt: Date | null;
   lastError: string | null;

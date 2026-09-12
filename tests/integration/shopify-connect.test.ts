@@ -7,6 +7,7 @@ import { createSession } from "@/server/auth/session";
 import { handleShopifyConnect } from "@/server/shopify/connect";
 import { handleShopifyCallback } from "@/server/shopify/callback";
 import { decryptCredentials } from "@/server/shopify/credentials";
+import { getDashboardMerchant } from "@/server/merchants/repository";
 
 process.env.SESSION_SECRET = "test-session-secret-32-characters-min";
 process.env.SHOPIFY_API_KEY = "test-key";
@@ -28,7 +29,7 @@ async function applyMigrations(pool: Pool) {
   }
 }
 
-test("Shopify connect requires a dashboard session and stores a one-time oauth attempt", async () => {
+test("Shopify connect stores a one-time oauth attempt from a dashboard session", async () => {
   assert.ok(process.env.DATABASE_URL);
   const schema = `shopify_connect_${randomUUID().replaceAll("-", "")}`;
   const admin = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -49,16 +50,6 @@ test("Shopify connect requires a dashboard session and stores a one-time oauth a
     );
     const merchantId = merchant.rows[0].id;
     const cookie = await createSession(merchantId, pool);
-
-    const unauthenticated = await handleShopifyConnect(
-      new Request("http://127.0.0.1:3000/api/shopify/connect", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ shop: "example-shop.myshopify.com" }),
-      }),
-      pool,
-    );
-    assert.equal(unauthenticated.status, 401);
 
     const invalid = await handleShopifyConnect(
       new Request("http://127.0.0.1:3000/api/shopify/connect", {
@@ -274,6 +265,126 @@ test("Shopify callback verifies HMAC, consumes state, stores encrypted credentia
       ).rows[0].merchant_id,
       merchantId,
     );
+  } finally {
+    await pool.end();
+    await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
+    await admin.end();
+  }
+});
+
+test("Connect Shopify from the browser creates a dashboard session after callback", async (context) => {
+  assert.ok(process.env.DATABASE_URL);
+  const schema = `shopify_ui_${randomUUID().replaceAll("-", "")}`;
+  const admin = new Pool({ connectionString: process.env.DATABASE_URL });
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    options: `-c search_path=${schema}`,
+  });
+  try {
+    await admin.query(`CREATE SCHEMA ${schema}`);
+    await applyMigrations(pool);
+
+    const started = await handleShopifyConnect(
+      new Request("http://127.0.0.1:3000/api/shopify/connect", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ shop: "ui-shop.myshopify.com" }),
+      }),
+      pool,
+    );
+    assert.equal(started.status, 200);
+    const state = new URL((await started.json()).authorizationUrl).searchParams.get("state")!;
+    const binding = started.headers
+      .getSetCookie()
+      .find((value) => value.startsWith("oauth_binding="))!
+      .split(";")[0];
+
+    context.mock.method(globalThis, "fetch", async () =>
+      Response.json({ access_token: "shpat_ui", scope: "read_products" }),
+    );
+
+    const callback = await handleShopifyCallback(
+      new Request(
+        `http://127.0.0.1:3000/api/connections/shopify/callback?${signedCallbackQuery({
+          shop: "ui-shop.myshopify.com",
+          code: "ui-code",
+          state,
+          timestamp: "1710000000",
+        })}`,
+        { headers: { cookie: binding } },
+      ),
+      pool,
+    );
+    assert.equal(callback.status, 302);
+    assert.match(callback.headers.get("location") ?? "", /\/seller$/);
+    const sessionCookie = callback.headers
+      .getSetCookie()
+      .find((value) => value.startsWith("session="));
+    assert.match(
+      sessionCookie ?? "",
+      /^session=[^;]+; HttpOnly; Path=\/; Max-Age=2592000; SameSite=Lax$/,
+    );
+
+    const dashboard = await getDashboardMerchant(sessionCookie!.split(";")[0], pool);
+    assert.equal(dashboard?.connectorType, "shopify");
+    assert.equal(dashboard?.enabled, true);
+    assert.equal(dashboard?.slug, "ui-shop.myshopify.com");
+    assert.ok(dashboard?.connectionId);
+  } finally {
+    await pool.end();
+    await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
+    await admin.end();
+  }
+});
+
+test("Shopify callback rolls back all writes when token exchange fails", async (context) => {
+  assert.ok(process.env.DATABASE_URL);
+  const schema = `shopify_rollback_${randomUUID().replaceAll("-", "")}`;
+  const admin = new Pool({ connectionString: process.env.DATABASE_URL });
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    options: `-c search_path=${schema}`,
+  });
+  try {
+    await admin.query(`CREATE SCHEMA ${schema}`);
+    await applyMigrations(pool);
+    const started = await handleShopifyConnect(
+      new Request("http://127.0.0.1:3000/api/shopify/connect", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ shop: "rollback-shop.myshopify.com" }),
+      }),
+      pool,
+    );
+    const state = new URL((await started.json()).authorizationUrl).searchParams.get("state")!;
+    const binding = started.headers
+      .getSetCookie()
+      .find((value) => value.startsWith("oauth_binding="))!
+      .split(";")[0];
+
+    context.mock.method(globalThis, "fetch", async () => new Response("nope", { status: 500 }));
+
+    const callback = await handleShopifyCallback(
+      new Request(
+        `http://127.0.0.1:3000/api/connections/shopify/callback?${signedCallbackQuery({
+          shop: "rollback-shop.myshopify.com",
+          code: "rollback-code",
+          state,
+          timestamp: "1710000000",
+        })}`,
+        { headers: { cookie: binding } },
+      ),
+      pool,
+    );
+    assert.equal(callback.status, 503);
+    assert.equal(
+      (await pool.query("SELECT consumed_at FROM oauth_attempts WHERE state = $1", [state])).rows[0]
+        .consumed_at,
+      null,
+    );
+    assert.equal((await pool.query("SELECT count(*)::int AS n FROM merchant_connections")).rows[0].n, 0);
+    assert.equal((await pool.query("SELECT count(*)::int AS n FROM sync_runs")).rows[0].n, 0);
+    assert.equal((await pool.query("SELECT count(*)::int AS n FROM sessions")).rows[0].n, 0);
   } finally {
     await pool.end();
     await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);

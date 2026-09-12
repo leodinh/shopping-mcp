@@ -5,6 +5,26 @@ import { syncConnection } from "@/server/sync/service";
 import type { Merchant } from "@/server/merchants/merchant.entity";
 import type { MerchantConnection } from "@/server/merchants/merchant-connection.entity";
 
+export async function ensureMerchantForShop(shop: string, pool: Pool = database()) {
+  const existing = await pool.query<{ id: string }>(
+    `SELECT COALESCE(
+       (SELECT merchant_id FROM merchant_connections WHERE shop_domain = $1),
+       (SELECT id FROM merchants WHERE slug = $1)
+     ) AS id`,
+    [shop],
+  );
+  if (existing.rows[0]?.id) return existing.rows[0].id;
+  const name = shop.slice(0, shop.indexOf("."));
+  const inserted = await pool.query<{ id: string }>(
+    `INSERT INTO merchants (slug, name, website_url)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name
+     RETURNING id`,
+    [shop, name, `https://${shop}`],
+  );
+  return inserted.rows[0].id;
+}
+
 export async function connectDemoStore(slug: unknown, pool: Pool = database()) {
   const store = demoStores.find((candidate) => candidate.slug === slug);
   if (!store) throw new Error("Choose one of the available demo stores.");

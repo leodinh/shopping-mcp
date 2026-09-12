@@ -1,9 +1,10 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { database } from "@/server/db/client";
 import type { Session } from "./session.entity";
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+export const SESSION_COOKIE_MAX_AGE = SESSION_TTL_MS / 1000;
 
 function secret() {
   const value = process.env.SESSION_SECRET;
@@ -34,7 +35,7 @@ export function readSessionCookie(cookieHeader: string | null) {
   return sessionId;
 }
 
-export async function createSession(merchantId: string, pool: Pool = database()) {
+export async function createSession(merchantId: string, pool: Pool | PoolClient = database()) {
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
   const inserted = await pool.query<Pick<Session, "id">>(
     "INSERT INTO sessions (merchant_id, expires_at) VALUES ($1, $2) RETURNING id",

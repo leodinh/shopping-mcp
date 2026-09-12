@@ -22,6 +22,7 @@ async function applyMigrations(pool: Pool) {
     "003_drop_sellers.sql",
     "004_oauth_attempts.sql",
     "005_shopify_connections.sql",
+    "006_drop_demo.sql",
   ]) {
     await pool.query(
       await readFile(new URL(`../../db/migrations/${name}`, import.meta.url), "utf8"),

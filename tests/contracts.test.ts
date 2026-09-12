@@ -7,9 +7,6 @@ import { minorUnits, searchSchema } from "@/shared/catalog-schema";
 import { compareProducts, getProductById } from "@/server/catalog/repository";
 import { searchProductsInput, toCatalogSearch } from "@/server/mcp/search-products";
 import { compareProductsInput } from "@/server/mcp/compare-products";
-import { demoCatalog } from "@/server/demo/catalog";
-import { demoStores } from "@/shared/demo-stores";
-
 const product = { externalId: "one", name: "Backpack", description: "Black", priceMinor: 8900,
   currency: "USD", inventory: 1, images: [], productUrl: "https://store.example/one" };
 
@@ -31,11 +28,6 @@ test("search validates filters and converts money without floating-point multipl
   for (const input of [{ limit: 0 }, { maxPrice: "-1" }, { maxPrice: "1.999" }, { merchantId: "invalid" }, { inStock: "yes" }, { offset: -1 }]) {
     assert.equal(searchSchema.safeParse(input).success, false);
   }
-});
-test("demo API fixtures contain 3 merchants and 12 products including shared external IDs", () => {
-  assert.equal(demoStores.length, 3);
-  assert.equal(demoStores.flatMap((store) => demoCatalog(store.slug)!.products).length, 12);
-  assert.equal(demoCatalog("missing"), null);
 });
 test("MCP search input maps to catalog query-string filters", () => {
   const mapped = toCatalogSearch(searchProductsInput.parse({ q: "backpack", maxPrice: 100, inStock: true, limit: 5 }));

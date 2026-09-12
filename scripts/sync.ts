@@ -9,7 +9,7 @@ async function main() {
       SELECT c.id, m.slug FROM merchant_connections c JOIN merchants m ON m.id = c.merchant_id
       WHERE c.enabled AND ($1::text IS NULL OR m.slug = $1) ORDER BY m.slug
     `, [slug ?? null]);
-    if (!connections.rowCount) throw new Error("No enabled connections found. Run db:seed or check the merchant slug.");
+    if (!connections.rowCount) throw new Error("No enabled connections found. Connect a Shopify store or check the merchant slug.");
     for (const connection of connections.rows) {
       try {
         console.log(connection.slug, await syncConnection(connection.id, pool));

@@ -6,8 +6,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "concurrently -k -n merchant,app \"npm:demo\" \"next dev --hostname 127.0.0.1\"",
-    "demo": "tsx --env-file-if-exists=.env scripts/demo-api.ts",
+    "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",
     "start": "next start --hostname 127.0.0.1",
     "typecheck": "tsc --noEmit",
@@ -16,8 +15,7 @@
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "db:migrate": "tsx --env-file-if-exists=.env scripts/migrate.ts",
-    "db:seed": "tsx --env-file-if-exists=.env scripts/seed.ts",
-    "db:setup": "npm run db:migrate && npm run db:seed && npm run sync",
+    "db:setup": "npm run db:migrate",
     "sync": "tsx --env-file-if-exists=.env scripts/sync.ts",
     "test": "tsx --test tests/*.test.ts",
     "test:integration": "tsx --env-file-if-exists=.env --test tests/integration/*.test.ts"
@@ -39,7 +37,6 @@
     "@types/pg": "^8.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "concurrently": "^9.0.0",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.3.4",
     "eslint-config-prettier": "^10.1.8",

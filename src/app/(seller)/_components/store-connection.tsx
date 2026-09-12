@@ -7,7 +7,7 @@ type StoreStatus = {
   slug: string;
   name: string;
   connectionId: string | null;
-  connectorType: "demo" | "shopify" | null;
+  connectorType: "shopify" | null;
   enabled: boolean | null;
   lastSyncedAt: string | null;
   lastError: string | null;
@@ -57,11 +57,7 @@ export function StoreConnections({ merchant }: { merchant: StoreStatus | null })
               <strong
                 className={`text-card-heading font-semibold sm:text-card-heading-lg ${connected.enabled ? "text-stock" : "text-sold-out"}`}
               >
-                {connected.enabled
-                  ? connected.connectorType === "shopify"
-                    ? "Shopify connected ✓"
-                    : "Connected"
-                  : "Disabled"}
+                {connected.enabled ? "Shopify connected ✓" : "Disabled"}
               </strong>
             </div>
             <div>

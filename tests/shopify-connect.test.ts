@@ -37,7 +37,7 @@ test("session cookie round-trips and rejects missing, tampered, or expired value
   const value = signSessionCookie(sessionId);
   assert.equal(readSessionCookie(`session=${value}`), sessionId);
   assert.throws(() => readSessionCookie(null), /Unauthorized/);
-  assert.throws(() => readSessionCookie("demo-store=northline"), /Unauthorized/);
+  assert.throws(() => readSessionCookie("oauth_binding=abc"), /Unauthorized/);
   const tampered = value.slice(0, -1) + (value.endsWith("a") ? "b" : "a");
   assert.throws(() => readSessionCookie(`session=${tampered}`), /Unauthorized/);
   assert.throws(

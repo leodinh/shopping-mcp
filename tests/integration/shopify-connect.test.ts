@@ -193,8 +193,12 @@ test("Shopify callback verifies HMAC, consumes state, stores encrypted credentia
       ),
       pool,
     );
-    assert.equal(created.status, 302);
-    assert.match(created.headers.get("location") ?? "", /\/seller$/);
+    assert.equal(created.status, 200);
+    assert.match(await created.text(), /\/seller/);
+    assert.match(
+      created.headers.getSetCookie().find((value) => value.startsWith("session=")) ?? "",
+      /^session=[^;]+; HttpOnly; Path=\/; Max-Age=2592000; SameSite=Lax$/,
+    );
 
     const attempt = await pool.query("SELECT consumed_at FROM oauth_attempts WHERE state = $1", [
       state,
@@ -315,8 +319,8 @@ test("Connect Shopify from the browser creates a dashboard session after callbac
       ),
       pool,
     );
-    assert.equal(callback.status, 302);
-    assert.match(callback.headers.get("location") ?? "", /\/seller$/);
+    assert.equal(callback.status, 200);
+    assert.match(await callback.text(), /\/seller/);
     const sessionCookie = callback.headers
       .getSetCookie()
       .find((value) => value.startsWith("session="));

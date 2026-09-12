@@ -24,7 +24,6 @@ async function consumeAttempt(
      RETURNING merchant_id`,
     [state, shop, browserBinding],
   );
-  console.log("consumeAttempt", result.rowCount, state, shop, browserBinding);
   if (!result.rowCount) throw new Error("Invalid state");
   return result.rows[0].merchant_id;
 }
@@ -115,7 +114,6 @@ export async function handleShopifyCallback(request: Request, pool: Pool = datab
     const shop = normalizeShopDomain(url.searchParams.get("shop"));
     const state = url.searchParams.get("state") ?? "";
     const code = url.searchParams.get("code") ?? "";
-    console.log("handleShopifyCallback", state, code);
     if (!state || !code) throw new Error("Invalid state");
     const client = await pool.connect();
     try {
@@ -144,13 +142,18 @@ export async function handleShopifyCallback(request: Request, pool: Pool = datab
       ]);
       const sessionCookie = await createSession(merchantId, client);
       await client.query("COMMIT");
-      return new Response(null, {
-        status: 302,
-        headers: {
-          Location: new URL("/seller", request.url).toString(),
-          "Set-Cookie": `${sessionCookie}; HttpOnly; Path=/; Max-Age=${SESSION_COOKIE_MAX_AGE}; SameSite=Lax`,
+      // 200 + same-site navigation: Chrome drops Set-Cookie on a cross-site 302 bounce.
+      return new Response(
+        `<!doctype html><meta http-equiv="refresh" content="0;url=/seller"><script>location.replace("/seller")</script><a href="/seller">Continue</a>`,
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "no-store",
+            "Set-Cookie": `${sessionCookie}; HttpOnly; Path=/; Max-Age=${SESSION_COOKIE_MAX_AGE}; SameSite=Lax`,
+          },
         },
-      });
+      );
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;

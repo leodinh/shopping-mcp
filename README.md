@@ -86,20 +86,21 @@ sync CLI ──> sync service ──> connector interface ──> Shopify
 
 This is a **modular monolith**, not a distributed commerce backend. Application modules live in one Next.js project and share one database.
 
-- `src/server/catalog`: `product.entity.ts`, validated search, PostgreSQL full-text search and pagination.
-- `src/server/merchants`: `merchant.entity.ts`, `merchant-connection.entity.ts`, and the `MerchantStatus` read model.
+- `src/server/catalog`: validated search, PostgreSQL full-text search and pagination.
+- `src/server/merchants`: merchant services and the `MerchantStatus` read model.
 - `src/server/connectors`: normalized product contract, validation, and registry.
 - `src/server/sync`: imports and snapshot reconciliation; no framework dependency.
-- `src/server/db/client.ts`: pooled database access shared across development reloads.
+- `src/server/db/schema.ts`: Drizzle table definitions (source of truth for columns and types).
+- `src/server/db/client.ts`: pooled `pg` connection wrapped with Drizzle, shared across development reloads.
 - `src/server/mcp`: MCP handler and tool adapters. Each tool maps agent input onto a catalog function.
 - `src/app`: seller status page, private `_components` and `_actions` folders, and read-only HTTP APIs.
 - `src/shared`: browser-safe catalog validation and types. These files must not import backend code.
 - `scripts`: migration and sync entry points.
-- `db/migrations`: ordered SQL files and migration ledger.
+- `db/migrations`: drizzle-kit SQL and snapshots.
 
 ### Data model
 
-`Merchant 1 — 1 MerchantConnection`, `Merchant 1 — N Product`. Table shapes are declared as TypeScript entities next to their modules (`merchant.entity.ts`, `merchant-connection.entity.ts`, `product.entity.ts`). `MerchantStatus` and `CatalogProduct` are read models, not table rows.
+`Merchant 1 — 1 MerchantConnection`, `Merchant 1 — N Product`. Table shapes are declared in `src/server/db/schema.ts`. `MerchantStatus` and `CatalogProduct` are read models, not table rows.
 
 Merchant connections store connector type, non-secret configuration, enabled flag, last attempt/success times, and last error. One connection per merchant deliberately keeps ownership simple. Products have a unique `(merchant_id, external_id)` constraint, so different stores may reuse the same SKU without colliding. Money uses integer minor units, not floating-point storage. Inventory is a non-negative integer; unavailable products stay searchable unless `inStock=true`.
 

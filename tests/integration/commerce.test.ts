@@ -60,6 +60,7 @@ test("PostgreSQL sync and search lifecycle", async () => {
     assert.equal(updated.products[0].priceMinor, 9900);
     assert.equal((await searchProducts({ merchantId: merchantIds[0], inStock: "true" }, db)).total, 0);
     assert.equal((await searchProducts({ merchantId: merchantIds[0], maxPrice: "98.99" }, db)).total, 0);
+    assert.equal((await searchProducts({ merchantId: merchantIds[0], maxPrice: "30000000" }, db)).total, 1);
     assert.equal((await searchProducts({ merchantId: merchantIds[0], currency: "CAD" }, db)).total, 0);
     assert.equal((await searchProducts({ merchantId: merchantIds[0], offset: 10 }, db)).total, 1);
     await assert.rejects(syncConnection(connections[0], pool, { type: "shopify", async fetchCatalog() { throw new Error("Upstream offline"); } }));

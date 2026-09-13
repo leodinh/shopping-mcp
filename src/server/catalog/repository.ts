@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, desc, eq, gt, inArray, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, or, sql } from "drizzle-orm";
 import { minorUnits, searchSchema, type CatalogProduct } from "@/shared/catalog-schema";
 import { database, type Database } from "@/server/db/client";
 import { merchants, products } from "@/server/db/schema";
@@ -35,7 +35,7 @@ function catalogWhere(filters: ReturnType<typeof searchSchema.parse>) {
     or(eq(sql`${filters.q}`, sql`''`), sql`${products.searchDocument} @@ ${tsquery}`),
     filters.merchantId ? eq(products.merchantId, filters.merchantId) : undefined,
     eq(products.currency, filters.currency),
-    filters.maxPrice === undefined ? undefined : lte(products.priceMinor, minorUnits(filters.maxPrice)),
+    filters.maxPrice === undefined ? undefined : sql`${products.priceMinor} <= ${minorUnits(filters.maxPrice)}::bigint`,
     filters.inStock === "true" ? gt(products.inventory, 0) : undefined,
   );
 }

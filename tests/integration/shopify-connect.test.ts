@@ -16,17 +16,13 @@ process.env.SHOPIFY_SCOPES = "read_products";
 process.env.SHOPIFY_REDIRECT_URI = "http://127.0.0.1:3000/api/connections/shopify/callback";
 
 async function applyMigrations(pool: Pool) {
-  for (const name of [
-    "001_commerce.sql",
-    "002_sessions.sql",
-    "003_drop_sellers.sql",
-    "004_oauth_attempts.sql",
-    "005_shopify_connections.sql",
-    "006_drop_demo.sql",
-  ]) {
-    await pool.query(
-      await readFile(new URL(`../../db/migrations/${name}`, import.meta.url), "utf8"),
-    );
+  const sql = await readFile(
+    new URL("../../db/migrations/0000_nifty_tyger_tiger.sql", import.meta.url),
+    "utf8",
+  );
+  for (const statement of sql.split("--> statement-breakpoint")) {
+    const trimmed = statement.trim();
+    if (trimmed) await pool.query(trimmed.replaceAll('"public".', ""));
   }
 }
 

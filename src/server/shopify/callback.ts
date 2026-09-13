@@ -1,31 +1,31 @@
-import type { Pool, PoolClient } from "pg";
-import { database } from "@/server/db/client";
+import { and, eq, gt, isNull, sql } from "drizzle-orm";
+import { database, type Database } from "@/server/db/client";
 import { createSession, SESSION_COOKIE_MAX_AGE } from "@/server/auth/session";
+import { merchantConnections, oauthAttempts, syncRuns } from "@/server/db/schema";
 import { normalizeShopDomain } from "./connect";
 import { encryptCredentials } from "./credentials";
 import { verifyShopifyHmac } from "./hmac";
-
-type Queryable = Pool | PoolClient;
 
 function oauthBinding(cookieHeader: string | null) {
   return cookieHeader?.match(/(?:^|;\s*)oauth_binding=([^;]+)/)?.[1] ?? "";
 }
 
-async function consumeAttempt(
-  state: string,
-  shop: string,
-  browserBinding: string,
-  pool: Queryable,
-) {
-  const result = await pool.query<{ merchant_id: string }>(
-    `UPDATE oauth_attempts SET consumed_at = now()
-     WHERE state = $1 AND shop = $2 AND browser_binding = $3
-       AND consumed_at IS NULL AND expires_at > now()
-     RETURNING merchant_id`,
-    [state, shop, browserBinding],
-  );
-  if (!result.rowCount) throw new Error("Invalid state");
-  return result.rows[0].merchant_id;
+async function consumeAttempt(state: string, shop: string, browserBinding: string, db: Database) {
+  const [row] = await db
+    .update(oauthAttempts)
+    .set({ consumedAt: sql`now()` })
+    .where(
+      and(
+        eq(oauthAttempts.state, state),
+        eq(oauthAttempts.shop, shop),
+        eq(oauthAttempts.browserBinding, browserBinding),
+        isNull(oauthAttempts.consumedAt),
+        gt(oauthAttempts.expiresAt, new Date()),
+      ),
+    )
+    .returning({ merchantId: oauthAttempts.merchantId });
+  if (!row) throw new Error("Invalid state");
+  return row.merchantId;
 }
 
 async function exchangeCode(shop: string, code: string) {
@@ -62,52 +62,53 @@ async function upsertConnection(
   merchantId: string,
   shop: string,
   token: Awaited<ReturnType<typeof exchangeCode>>,
-  pool: Queryable,
+  db: Database,
 ) {
-  const owner = await pool.query<{ merchant_id: string }>(
-    "SELECT merchant_id FROM merchant_connections WHERE shop_domain = $1",
-    [shop],
-  );
-  if (owner.rows[0] && owner.rows[0].merchant_id !== merchantId) {
-    throw new Error("Shop already connected");
-  }
+  const [owner] = await db
+    .select({ merchantId: merchantConnections.merchantId })
+    .from(merchantConnections)
+    .where(eq(merchantConnections.shopDomain, shop))
+    .limit(1);
+  if (owner && owner.merchantId !== merchantId) throw new Error("Shop already connected");
   const expiresAt = token.expires_in ? new Date(Date.now() + token.expires_in * 1000) : null;
   const refreshExpiresAt = token.refresh_token_expires_in
     ? new Date(Date.now() + token.refresh_token_expires_in * 1000)
     : null;
-  const connection = await pool.query<{ id: string }>(
-    `INSERT INTO merchant_connections (
-       merchant_id, connector_type, config, shop_domain, credentials_encrypted, scopes,
-       token_expires_at, refresh_token_expires_at, enabled
-     ) VALUES ($1, 'shopify', $2::jsonb, $3, $4, $5, $6, $7, true)
-     ON CONFLICT (merchant_id) DO UPDATE SET
-       connector_type = 'shopify', 
-       config = EXCLUDED.config,
-       shop_domain = EXCLUDED.shop_domain,
-       credentials_encrypted = EXCLUDED.credentials_encrypted,
-       scopes = EXCLUDED.scopes,
-       token_expires_at = EXCLUDED.token_expires_at,
-       refresh_token_expires_at = EXCLUDED.refresh_token_expires_at,
-       enabled = true,
-       last_error = NULL
-     RETURNING id`,
-    [
+  const [connection] = await db
+    .insert(merchantConnections)
+    .values({
       merchantId,
-      JSON.stringify({ shop }),
-      shop,
-      encryptCredentials({
+      connectorType: "shopify",
+      config: { shop },
+      shopDomain: shop,
+      credentialsEncrypted: encryptCredentials({
         accessToken: token.access_token,
         ...(token.refresh_token ? { refreshToken: token.refresh_token } : {}),
       }),
-      token.scope ?? "",
-      expiresAt,
-      refreshExpiresAt,
-    ],
-  );
-  return connection.rows[0].id;
+      scopes: token.scope ?? "",
+      tokenExpiresAt: expiresAt,
+      refreshTokenExpiresAt: refreshExpiresAt,
+      enabled: true,
+    })
+    .onConflictDoUpdate({
+      target: merchantConnections.merchantId,
+      set: {
+        connectorType: "shopify",
+        config: sql`excluded.config`,
+        shopDomain: sql`excluded.shop_domain`,
+        credentialsEncrypted: sql`excluded.credentials_encrypted`,
+        scopes: sql`excluded.scopes`,
+        tokenExpiresAt: sql`excluded.token_expires_at`,
+        refreshTokenExpiresAt: sql`excluded.refresh_token_expires_at`,
+        enabled: true,
+        lastError: null,
+      },
+    })
+    .returning({ id: merchantConnections.id });
+  return connection.id;
 }
 
-export async function handleShopifyCallback(request: Request, pool: Pool = database()) {
+export async function handleShopifyCallback(request: Request, db: Database = database()) {
   try {
     const url = new URL(request.url);
     verifyShopifyHmac(url.searchParams);
@@ -115,51 +116,40 @@ export async function handleShopifyCallback(request: Request, pool: Pool = datab
     const state = url.searchParams.get("state") ?? "";
     const code = url.searchParams.get("code") ?? "";
     if (!state || !code) throw new Error("Invalid state");
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
+    let sessionCookie = "";
+    await db.transaction(async (tx) => {
       const merchantId = await consumeAttempt(
         state,
         shop,
         oauthBinding(request.headers.get("cookie")),
-        client,
+        tx,
       );
-      const owner = await client.query<{ merchant_id: string }>(
-        "SELECT merchant_id FROM merchant_connections WHERE shop_domain = $1",
-        [shop],
-      );
-      if (owner.rows[0] && owner.rows[0].merchant_id !== merchantId) {
-        throw new Error("Shop already connected");
-      }
+      const [owner] = await tx
+        .select({ merchantId: merchantConnections.merchantId })
+        .from(merchantConnections)
+        .where(eq(merchantConnections.shopDomain, shop))
+        .limit(1);
+      if (owner && owner.merchantId !== merchantId) throw new Error("Shop already connected");
       const connectionId = await upsertConnection(
         merchantId,
         shop,
         await exchangeCode(shop, code),
-        client,
+        tx,
       );
-      await client.query("INSERT INTO sync_runs (connection_id, status) VALUES ($1, 'pending')", [
-        connectionId,
-      ]);
-      const sessionCookie = await createSession(merchantId, client);
-      await client.query("COMMIT");
-      // 200 + same-site navigation: Chrome drops Set-Cookie on a cross-site 302 bounce.
-      return new Response(
-        `<!doctype html><meta http-equiv="refresh" content="0;url=/seller"><script>location.replace("/seller")</script><a href="/seller">Continue</a>`,
-        {
-          status: 200,
-          headers: {
-            "Content-Type": "text/html; charset=utf-8",
-            "Cache-Control": "no-store",
-            "Set-Cookie": `${sessionCookie}; HttpOnly; Path=/; Max-Age=${SESSION_COOKIE_MAX_AGE}; SameSite=Lax`,
-          },
+      await tx.insert(syncRuns).values({ connectionId, status: "pending" });
+      sessionCookie = await createSession(merchantId, tx);
+    });
+    return new Response(
+      `<!doctype html><meta http-equiv="refresh" content="0;url=/seller"><script>location.replace("/seller")</script><a href="/seller">Continue</a>`,
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-store",
+          "Set-Cookie": `${sessionCookie}; HttpOnly; Path=/; Max-Age=${SESSION_COOKIE_MAX_AGE}; SameSite=Lax`,
         },
-      );
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
-    }
+      },
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Request failed";
     if (message === "Invalid HMAC" || message === "Invalid state") {

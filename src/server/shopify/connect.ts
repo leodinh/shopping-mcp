@@ -3,7 +3,7 @@ import type { Pool } from "pg";
 import { database } from "@/server/db/client";
 import { requireSession } from "@/server/auth/session";
 import { ensureMerchantForShop } from "@/server/merchants/service";
-import type { OAuthAttempt } from "./oauth-attempt.entity";
+import type { OAuthAttempt } from "@/server/db/schema";
 
 const SHOP_DOMAIN = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
 const ATTEMPT_TTL_MS = 10 * 60 * 1000;

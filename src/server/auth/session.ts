@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 import { database } from "@/server/db/client";
-import type { Session } from "./session.entity";
+import type { Session } from "@/server/db/schema";
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 export const SESSION_COOKIE_MAX_AGE = SESSION_TTL_MS / 1000;

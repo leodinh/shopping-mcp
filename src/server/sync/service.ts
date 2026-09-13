@@ -2,7 +2,7 @@ import type { Pool } from "pg";
 import { database } from "@/server/db/client";
 import { type MerchantConnector, validateSnapshot } from "@/server/connectors/contract";
 import { getConnector } from "@/server/connectors/registry";
-import type { MerchantConnection } from "@/server/merchants/merchant-connection.entity";
+import type { MerchantConnection } from "@/server/db/schema";
 
 export async function syncConnection(connectionId: string, pool: Pool = database(), connectorOverride?: MerchantConnector) {
   const client = await pool.connect();

@@ -1,0 +1,164 @@
+{
+  "title": "Choose the visual world",
+  "question": "Shopping with Agent’s homepage: pick a world, or re-roll. Waiting in the re-roll pool: Risograph, split-flap concourse, daylight section.",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "Agent Sidebar",
+      "kicker": "THE ROLL",
+      "lineage": "IDE agent rail / composer panel",
+      "thesis": "The homepage is the panel you already talk to: a live agent shopping, plus an honest Add server control.",
+      "palette": ["#0e1116", "#161b22", "#e6edf3", "#1a6b4a"],
+      "materials": ["editor chrome", "status bar", "MCP server row", "cascading transcript"],
+      "viewport": "Full-bleed workspace: activity strip, agent rail with a labeled-synthetic product compare, and Download shopping-mcp.json as the rail’s primary control — never a fake Connected state.",
+      "risk": "Reads as a Cursor clone, and ChatGPT-only shoppers may not see themselves.",
+      "raised": [
+        {
+          "from": "risograph-web-system",
+          "raise": "The workspace is one registered tool surface — titlebar, rail, transcript — not a chat widget pasted on a landing page."
+        },
+        {
+          "from": "signals-instruments-split-flap-concourse",
+          "raise": "Agent replies cascade into the rail live, not as a screenshot of one finished answer."
+        },
+        {
+          "from": "architecture-inhabitable-space-daylight-section",
+          "raise": "The page is one continuous workspace section; marketing blocks do not stack under it."
+        }
+      ],
+      "comp": ".impeccable/mocks/decision/assigned.webp",
+      "wireframe": {
+        "cols": 12,
+        "rows": 10,
+        "regions": [
+          { "label": "titlebar", "x": 0, "y": 0, "w": 12, "h": 1 },
+          { "label": "activity", "x": 0, "y": 1, "w": 1, "h": 8, "accent": true },
+          { "label": "transcript", "x": 1, "y": 1, "w": 7, "h": 8 },
+          { "label": "add server", "x": 8, "y": 1, "w": 4, "h": 8, "accent": true },
+          { "label": "status", "x": 0, "y": 9, "w": 12, "h": 1 }
+        ]
+      }
+    },
+    {
+      "id": "model-pick",
+      "label": "Chat Transcript",
+      "kicker": "IMPECCABLE’S PICK",
+      "lineage": "assistant message thread",
+      "thesis": "The page is the conversation. You watch the assistant shop, then add the server so yours can too.",
+      "palette": ["#121212", "#1e1e1e", "#f4f4f0", "#3d6b4f"],
+      "materials": ["message bubbles", "in-thread product cards", "sticky composer"],
+      "viewport": "A full-page thread: a product ask, compared results in-stream (synthetic, labeled), sticky composer is Download shopping-mcp.json plus the three next steps.",
+      "risk": "Also the direction most runs in this category land on.",
+      "comp": ".impeccable/mocks/decision/model-pick.webp",
+      "wireframe": {
+        "cols": 12,
+        "rows": 10,
+        "regions": [
+          { "label": "wordmark", "x": 0, "y": 0, "w": 12, "h": 1 },
+          { "label": "thread", "x": 2, "y": 1, "w": 8, "h": 6 },
+          { "label": "product cards", "x": 3, "y": 4, "w": 6, "h": 2, "accent": true },
+          { "label": "add server", "x": 2, "y": 8, "w": 8, "h": 2, "accent": true }
+        ]
+      }
+    },
+    {
+      "id": "challenger-massin-stage-page",
+      "label": "Massin Stage",
+      "verdict": "competitive",
+      "lineage": "dialogue typeset as performance",
+      "thesis": "You and the assistant are two voices on a spread; volume is type size, compare is an argument across the gutter.",
+      "palette": ["#f4f1ea", "#111111", "#c41230", "#2b4c7e"],
+      "materials": ["letterpress ink", "stamp portraits", "one face per speaker"],
+      "viewport": "Shopper ask in one voice, assistant compare in another; Download shopping-mcp.json sits as the next line of dialogue, not a SaaS button row.",
+      "case": "Holds identification: conversation is the shopper’s real scene. Loses clarity: theater can hide that this is an MCP server you add.",
+      "risk": "Reads as a playbill, not a tool you can finish in one sitting.",
+      "comp": ".impeccable/mocks/decision/challenger-massin.webp",
+      "hero": "https://impeccable.style/worlds/cards/massin-stage-page-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/massin-stage-page.webp",
+      "wireframe": {
+        "cols": 12,
+        "rows": 10,
+        "regions": [
+          { "label": "shopper voice", "x": 0, "y": 0, "w": 6, "h": 8 },
+          { "label": "assistant voice", "x": 6, "y": 0, "w": 6, "h": 8, "accent": true },
+          { "label": "add server", "x": 0, "y": 8, "w": 12, "h": 2, "accent": true }
+        ]
+      }
+    },
+    {
+      "id": "challenger-jacquard-punched-brocade",
+      "label": "Punched Brocade",
+      "verdict": "competitive",
+      "lineage": "Jacquard punch cards to woven motif",
+      "thesis": "mcp.json is the punch card. The weave is products your assistant can find.",
+      "palette": ["#0b1220", "#c9a227", "#e8d9b0", "#1a2744"],
+      "materials": ["midnight silk", "gold weft", "punch-card cream", "monospaced row ledgers"],
+      "viewport": "Instruction rows (the config) on one band, a woven catalog motif on the other; the primary control is punch this card — download shopping-mcp.json.",
+      "case": "Holds product clarity: instructions that become shopping is the mechanism. Loses identification: shoppers do not live at a loom.",
+      "risk": "Beautiful, and it can feel like a textile museum instead of Add this server.",
+      "comp": ".impeccable/mocks/decision/challenger-jacquard.webp",
+      "hero": "https://impeccable.style/worlds/cards/textiles-weave-drape-fashion-jacquard-punched-brocade-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/textiles-weave-drape-fashion-jacquard-punched-brocade.webp",
+      "wireframe": {
+        "cols": 12,
+        "rows": 10,
+        "regions": [
+          { "label": "punch rows", "x": 0, "y": 0, "w": 5, "h": 10 },
+          { "label": "woven motif", "x": 5, "y": 0, "w": 7, "h": 7, "accent": true },
+          { "label": "add server", "x": 5, "y": 7, "w": 7, "h": 3, "accent": true }
+        ]
+      }
+    },
+    {
+      "id": "challenger-festival-lineup-poster",
+      "label": "Lineup Sheet",
+      "verdict": "competitive",
+      "lineage": "festival billing poster, type only",
+      "thesis": "No pictures. Add this server is the headliner; everything else is billing size.",
+      "palette": ["#e8ff00", "#0a0a0a"],
+      "materials": ["one saturated ground", "one condensed face", "no imagery"],
+      "viewport": "SHOPPING WITH AGENT and DOWNLOAD MCP CONFIG span the sheet; shopper steps and a quiet store-owner line pack into the justified foot.",
+      "case": "Holds product clarity: the action is readable from across the room. Loses identification: a concert poster is not an assistant.",
+      "risk": "Shouts. Can feel like a gig, not a tool you add once.",
+      "comp": ".impeccable/mocks/decision/challenger-festival.webp",
+      "hero": "https://impeccable.style/worlds/cards/posters-covers-sleeves-festival-lineup-poster-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/posters-covers-sleeves-festival-lineup-poster.webp",
+      "wireframe": {
+        "cols": 12,
+        "rows": 10,
+        "regions": [
+          { "label": "headliner CTA", "x": 0, "y": 0, "w": 12, "h": 4, "accent": true },
+          { "label": "steps", "x": 0, "y": 4, "w": 12, "h": 3 },
+          { "label": "store owner", "x": 0, "y": 7, "w": 12, "h": 3 }
+        ]
+      }
+    }
+  ],
+  "reroll": {
+    "registers": ["safer", "bolder"]
+  },
+  "buildPath": {
+    "value": "code",
+    "toggle": true
+  },
+  "canon": true,
+  "canonCard": {
+    "label": "The category standard",
+    "thesis": "Split-audience hero, two cards, product photography, executed impeccably.",
+    "palette": ["#ffffff", "#111827", "#2563eb"],
+    "materials": ["clean grid", "product photography"],
+    "viewport": "Headline, then For shoppers / For store owners as equal cards — the arrangement this category always ships.",
+    "risk": "Indistinguishable from every other AI-commerce landing, by design.",
+    "comp": ".impeccable/mocks/decision/canon.webp",
+    "wireframe": {
+      "cols": 12,
+      "rows": 10,
+      "regions": [
+        { "label": "hero", "x": 0, "y": 0, "w": 12, "h": 4 },
+        { "label": "shopper card", "x": 0, "y": 4, "w": 6, "h": 6, "accent": true },
+        { "label": "merchant card", "x": 6, "y": 4, "w": 6, "h": 6 }
+      ]
+    }
+  },
+  "steer": true
+}

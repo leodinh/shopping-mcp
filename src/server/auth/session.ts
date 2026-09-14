@@ -44,6 +44,20 @@ export async function createSession(merchantId: string, db: Database = database(
   return `session=${signSessionCookie(inserted.id, expiresAt.getTime())}`;
 }
 
+export function clearSessionCookie() {
+  return "session=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax";
+}
+
+export async function destroySession(cookieHeader: string | null, db: Database = database()) {
+  try {
+    const sessionId = readSessionCookie(cookieHeader);
+    await db.delete(sessions).where(eq(sessions.id, sessionId));
+  } catch {
+    // Already unauthorized — still expire the cookie.
+  }
+  return clearSessionCookie();
+}
+
 export async function requireSession(cookieHeader: string | null, db: Database = database()) {
   const sessionId = readSessionCookie(cookieHeader);
   const [row] = await db

@@ -1,38 +1,45 @@
-import type { Pool } from "pg";
-import { database } from "@/server/db/client";
+import { and, count, eq, sql } from "drizzle-orm";
+import { database, type Database } from "@/server/db/client";
 import { requireSession } from "@/server/auth/session";
+import { merchantConnections, merchants, products } from "@/server/db/schema";
 import type { MerchantStatus } from "@/server/merchants/merchant-status";
 
-const STATUS_SELECT = `
-  SELECT m.id, m.slug, m.name, c.id AS "connectionId", c.connector_type AS "connectorType",
-    c.enabled, c.last_synced_at AS "lastSyncedAt", c.last_error AS "lastError",
-    count(p.id)::int AS "productCount"
-  FROM merchants m
-  LEFT JOIN merchant_connections c ON c.merchant_id = m.id
-  LEFT JOIN products p ON p.merchant_id = m.id AND p.active
-`;
+const statusSelect = {
+  id: merchants.id,
+  slug: merchants.slug,
+  name: merchants.name,
+  connectionId: merchantConnections.id,
+  connectorType: merchantConnections.connectorType,
+  enabled: merchantConnections.enabled,
+  lastSyncedAt: merchantConnections.lastSyncedAt,
+  lastError: merchantConnections.lastError,
+  productCount: sql<number>`cast(${count(products.id)} as int)`,
+};
 
-export async function listMerchants(slug?: string, pool: Pool = database()) {
-  const result = await pool.query<MerchantStatus>(
-    `${STATUS_SELECT}
-    WHERE ($1::text IS NULL OR m.slug = $1)
-    GROUP BY m.id, c.id ORDER BY m.name`,
-    [slug ?? null],
-  );
-  return result.rows;
+function statusQuery(db: Database) {
+  return db
+    .select(statusSelect)
+    .from(merchants)
+    .leftJoin(merchantConnections, eq(merchantConnections.merchantId, merchants.id))
+    .leftJoin(products, and(eq(products.merchantId, merchants.id), eq(products.active, true)))
+    .groupBy(merchants.id, merchantConnections.id);
 }
 
-export async function getDashboardMerchant(cookieHeader: string | null, pool: Pool = database()) {
+export async function listMerchants(slug?: string, db: Database = database()) {
+  const rows = await statusQuery(db)
+    .where(slug === undefined ? undefined : eq(merchants.slug, slug))
+    .orderBy(merchants.name);
+  return rows as MerchantStatus[];
+}
+
+export async function getDashboardMerchant(cookieHeader: string | null, db: Database = database()) {
   let merchantId: string;
   try {
-    merchantId = await requireSession(cookieHeader, pool);
+    merchantId = await requireSession(cookieHeader, db);
   } catch (error) {
     if (error instanceof Error && error.message === "Unauthorized") return null;
     throw error;
   }
-  const result = await pool.query<MerchantStatus>(
-    `${STATUS_SELECT} WHERE m.id = $1 GROUP BY m.id, c.id`,
-    [merchantId],
-  );
-  return result.rows[0] ?? null;
+  const rows = await statusQuery(db).where(eq(merchants.id, merchantId));
+  return (rows[0] as MerchantStatus | undefined) ?? null;
 }

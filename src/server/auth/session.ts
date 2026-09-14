@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import type { Pool, PoolClient } from "pg";
-import { database } from "@/server/db/client";
-import type { Session } from "./session.entity";
+import { and, eq, gt } from "drizzle-orm";
+import { database, type Database } from "@/server/db/client";
+import { sessions } from "@/server/db/schema";
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 export const SESSION_COOKIE_MAX_AGE = SESSION_TTL_MS / 1000;
@@ -35,21 +35,21 @@ export function readSessionCookie(cookieHeader: string | null) {
   return sessionId;
 }
 
-export async function createSession(merchantId: string, pool: Pool | PoolClient = database()) {
+export async function createSession(merchantId: string, db: Database = database()) {
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
-  const inserted = await pool.query<Pick<Session, "id">>(
-    "INSERT INTO sessions (merchant_id, expires_at) VALUES ($1, $2) RETURNING id",
-    [merchantId, expiresAt],
-  );
-  return `session=${signSessionCookie(inserted.rows[0].id, expiresAt.getTime())}`;
+  const [inserted] = await db
+    .insert(sessions)
+    .values({ merchantId, expiresAt })
+    .returning({ id: sessions.id });
+  return `session=${signSessionCookie(inserted.id, expiresAt.getTime())}`;
 }
 
-export async function requireSession(cookieHeader: string | null, pool: Pool = database()) {
+export async function requireSession(cookieHeader: string | null, db: Database = database()) {
   const sessionId = readSessionCookie(cookieHeader);
-  const result = await pool.query<{ merchant_id: string }>(
-    "SELECT merchant_id FROM sessions WHERE id = $1 AND expires_at > now()",
-    [sessionId],
-  );
-  if (!result.rows[0]) throw new Error("Unauthorized");
-  return result.rows[0].merchant_id;
+  const [row] = await db
+    .select({ merchantId: sessions.merchantId })
+    .from(sessions)
+    .where(and(eq(sessions.id, sessionId), gt(sessions.expiresAt, new Date())));
+  if (!row) throw new Error("Unauthorized");
+  return row.merchantId;
 }

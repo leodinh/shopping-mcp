@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createHmac, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { Pool } from "pg";
+import { databaseFrom } from "@/server/db/client";
 import { createSession } from "@/server/auth/session";
 import { handleShopifyConnect } from "@/server/shopify/connect";
 import { handleShopifyCallback } from "@/server/shopify/callback";
@@ -16,17 +17,13 @@ process.env.SHOPIFY_SCOPES = "read_products";
 process.env.SHOPIFY_REDIRECT_URI = "http://127.0.0.1:3000/api/connections/shopify/callback";
 
 async function applyMigrations(pool: Pool) {
-  for (const name of [
-    "001_commerce.sql",
-    "002_sessions.sql",
-    "003_drop_sellers.sql",
-    "004_oauth_attempts.sql",
-    "005_shopify_connections.sql",
-    "006_drop_demo.sql",
-  ]) {
-    await pool.query(
-      await readFile(new URL(`../../db/migrations/${name}`, import.meta.url), "utf8"),
-    );
+  const sql = await readFile(
+    new URL("../../db/migrations/0000_nifty_tyger_tiger.sql", import.meta.url),
+    "utf8",
+  );
+  for (const statement of sql.split("--> statement-breakpoint")) {
+    const trimmed = statement.trim();
+    if (trimmed) await pool.query(trimmed.replaceAll('"public".', ""));
   }
 }
 
@@ -41,6 +38,7 @@ test("Shopify connect stores a one-time oauth attempt from a dashboard session",
   try {
     await admin.query(`CREATE SCHEMA ${schema}`);
     await applyMigrations(pool);
+    const db = databaseFrom(pool);
     const merchant = await pool.query<{ id: string }>(
       "INSERT INTO merchants (slug, name, website_url) VALUES ($1, 'Northline', 'https://northline.example') RETURNING id",
       [`shopify-${randomUUID()}`],
@@ -50,7 +48,7 @@ test("Shopify connect stores a one-time oauth attempt from a dashboard session",
       [`shopify-${randomUUID()}`],
     );
     const merchantId = merchant.rows[0].id;
-    const cookie = await createSession(merchantId, pool);
+    const cookie = await createSession(merchantId, db);
 
     const invalid = await handleShopifyConnect(
       new Request("http://127.0.0.1:3000/api/shopify/connect", {
@@ -58,7 +56,7 @@ test("Shopify connect stores a one-time oauth attempt from a dashboard session",
         headers: { cookie, "content-type": "application/json" },
         body: JSON.stringify({ shop: "example.com" }),
       }),
-      pool,
+      db,
     );
     assert.equal(invalid.status, 400);
 
@@ -71,7 +69,7 @@ test("Shopify connect stores a one-time oauth attempt from a dashboard session",
           sellerId: other.rows[0].id,
         }),
       }),
-      pool,
+      db,
     );
     assert.equal(created.status, 200);
     const payload = await created.json();
@@ -129,6 +127,7 @@ test("Shopify callback verifies HMAC, consumes state, stores encrypted credentia
   try {
     await admin.query(`CREATE SCHEMA ${schema}`);
     await applyMigrations(pool);
+    const db = databaseFrom(pool);
     const merchant = await pool.query<{ id: string }>(
       "INSERT INTO merchants (slug, name, website_url) VALUES ($1, 'Northline', 'https://northline.example') RETURNING id",
       [`shopify-${randomUUID()}`],
@@ -138,14 +137,14 @@ test("Shopify callback verifies HMAC, consumes state, stores encrypted credentia
       [`shopify-${randomUUID()}`],
     );
     const merchantId = merchant.rows[0].id;
-    const cookie = await createSession(merchantId, pool);
+    const cookie = await createSession(merchantId, db);
     const started = await handleShopifyConnect(
       new Request("http://127.0.0.1:3000/api/shopify/connect", {
         method: "POST",
         headers: { cookie, "content-type": "application/json" },
         body: JSON.stringify({ shop: "example-shop.myshopify.com" }),
       }),
-      pool,
+      db,
     );
     const state = new URL((await started.json()).authorizationUrl).searchParams.get("state")!;
     const binding = started.headers
@@ -165,7 +164,7 @@ test("Shopify callback verifies HMAC, consumes state, stores encrypted credentia
         `http://127.0.0.1:3000/api/connections/shopify/callback?${new URLSearchParams(query)}`,
         { headers: { cookie: cookies } },
       ),
-      pool,
+      db,
     );
     assert.equal(unsigned.status, 403);
 
@@ -192,7 +191,7 @@ test("Shopify callback verifies HMAC, consumes state, stores encrypted credentia
         `http://127.0.0.1:3000/api/connections/shopify/callback?${signedCallbackQuery(query)}`,
         { headers: { cookie: cookies } },
       ),
-      pool,
+      db,
     );
     assert.equal(created.status, 200);
     assert.match(await created.text(), /\/seller/);
@@ -229,18 +228,18 @@ test("Shopify callback verifies HMAC, consumes state, stores encrypted credentia
         `http://127.0.0.1:3000/api/connections/shopify/callback?${signedCallbackQuery(query)}`,
         { headers: { cookie: cookies } },
       ),
-      pool,
+      db,
     );
     assert.equal(reused.status, 403);
 
-    const otherCookie = await createSession(other.rows[0].id, pool);
+    const otherCookie = await createSession(other.rows[0].id, db);
     const otherStart = await handleShopifyConnect(
       new Request("http://127.0.0.1:3000/api/shopify/connect", {
         method: "POST",
         headers: { cookie: otherCookie, "content-type": "application/json" },
         body: JSON.stringify({ shop: "example-shop.myshopify.com" }),
       }),
-      pool,
+      db,
     );
     const otherState = new URL((await otherStart.json()).authorizationUrl).searchParams.get(
       "state",
@@ -259,7 +258,7 @@ test("Shopify callback verifies HMAC, consumes state, stores encrypted credentia
         })}`,
         { headers: { cookie: `${otherCookie}; ${otherBinding}` } },
       ),
-      pool,
+      db,
     );
     assert.equal(stolen.status, 409);
     assert.equal(
@@ -288,6 +287,7 @@ test("Connect Shopify from the browser creates a dashboard session after callbac
   try {
     await admin.query(`CREATE SCHEMA ${schema}`);
     await applyMigrations(pool);
+    const db = databaseFrom(pool);
 
     const started = await handleShopifyConnect(
       new Request("http://127.0.0.1:3000/api/shopify/connect", {
@@ -295,7 +295,7 @@ test("Connect Shopify from the browser creates a dashboard session after callbac
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ shop: "ui-shop.myshopify.com" }),
       }),
-      pool,
+      db,
     );
     assert.equal(started.status, 200);
     const state = new URL((await started.json()).authorizationUrl).searchParams.get("state")!;
@@ -318,7 +318,7 @@ test("Connect Shopify from the browser creates a dashboard session after callbac
         })}`,
         { headers: { cookie: binding } },
       ),
-      pool,
+      db,
     );
     assert.equal(callback.status, 200);
     assert.match(await callback.text(), /\/seller/);
@@ -330,7 +330,7 @@ test("Connect Shopify from the browser creates a dashboard session after callbac
       /^session=[^;]+; HttpOnly; Path=\/; Max-Age=2592000; SameSite=Lax$/,
     );
 
-    const dashboard = await getDashboardMerchant(sessionCookie!.split(";")[0], pool);
+    const dashboard = await getDashboardMerchant(sessionCookie!.split(";")[0], db);
     assert.equal(dashboard?.connectorType, "shopify");
     assert.equal(dashboard?.enabled, true);
     assert.equal(dashboard?.slug, "ui-shop.myshopify.com");
@@ -353,13 +353,14 @@ test("Shopify callback rolls back all writes when token exchange fails", async (
   try {
     await admin.query(`CREATE SCHEMA ${schema}`);
     await applyMigrations(pool);
+    const db = databaseFrom(pool);
     const started = await handleShopifyConnect(
       new Request("http://127.0.0.1:3000/api/shopify/connect", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ shop: "rollback-shop.myshopify.com" }),
       }),
-      pool,
+      db,
     );
     const state = new URL((await started.json()).authorizationUrl).searchParams.get("state")!;
     const binding = started.headers
@@ -379,7 +380,7 @@ test("Shopify callback rolls back all writes when token exchange fails", async (
         })}`,
         { headers: { cookie: binding } },
       ),
-      pool,
+      db,
     );
     assert.equal(callback.status, 503);
     assert.equal(

@@ -1,9 +1,8 @@
 import { randomBytes } from "node:crypto";
-import type { Pool } from "pg";
-import { database } from "@/server/db/client";
+import { database, type Database } from "@/server/db/client";
 import { requireSession } from "@/server/auth/session";
 import { ensureMerchantForShop } from "@/server/merchants/service";
-import type { OAuthAttempt } from "./oauth-attempt.entity";
+import { oauthAttempts } from "@/server/db/schema";
 
 const SHOP_DOMAIN = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
 const ATTEMPT_TTL_MS = 10 * 60 * 1000;
@@ -35,15 +34,17 @@ export async function startShopifyConnect(
   shop: unknown,
   merchantId: string,
   browserBinding: string,
-  pool: Pool = database(),
+  db: Database = database(),
 ) {
   const normalized = normalizeShopDomain(shop);
   const state = randomBytes(16).toString("hex");
-  await pool.query<Pick<OAuthAttempt, "state">>(
-    `INSERT INTO oauth_attempts (state, merchant_id, shop, browser_binding, expires_at)
-     VALUES ($1, $2, $3, $4, $5)`,
-    [state, merchantId, normalized, browserBinding, new Date(Date.now() + ATTEMPT_TTL_MS)],
-  );
+  await db.insert(oauthAttempts).values({
+    state,
+    merchantId,
+    shop: normalized,
+    browserBinding,
+    expiresAt: new Date(Date.now() + ATTEMPT_TTL_MS),
+  });
   return { authorizationUrl: shopifyAuthorizeUrl(normalized, state) };
 }
 
@@ -51,17 +52,17 @@ function hasSessionCookie(cookieHeader: string | null) {
   return /(?:^|;\s*)session=/.test(cookieHeader ?? "");
 }
 
-export async function handleShopifyConnect(request: Request, pool: Pool = database()) {
+export async function handleShopifyConnect(request: Request, db: Database = database()) {
   try {
     const cookieHeader = request.headers.get("cookie");
     const body = (await request.json().catch(() => ({}))) as { shop?: unknown };
     const shop = normalizeShopDomain(body.shop);
     const merchantId = hasSessionCookie(cookieHeader)
-      ? await requireSession(cookieHeader, pool)
-      : await ensureMerchantForShop(shop, pool);
+      ? await requireSession(cookieHeader, db)
+      : await ensureMerchantForShop(shop, db);
     const browserBinding = randomBytes(16).toString("hex");
     const response = Response.json(
-      await startShopifyConnect(shop, merchantId, browserBinding, pool),
+      await startShopifyConnect(shop, merchantId, browserBinding, db),
     );
     response.headers.append(
       "set-cookie",

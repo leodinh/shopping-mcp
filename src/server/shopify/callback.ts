@@ -1,7 +1,8 @@
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { database, type Database } from "@/server/db/client";
 import { createSession, SESSION_COOKIE_MAX_AGE } from "@/server/auth/session";
-import { merchantConnections, oauthAttempts, syncRuns } from "@/server/db/schema";
+import { merchantConnections, oauthAttempts } from "@/server/db/schema";
+import { enqueueSync } from "@/server/sync/outbox";
 import { normalizeShopDomain } from "./connect";
 import { encryptCredentials } from "./credentials";
 import { verifyShopifyHmac } from "./hmac";
@@ -136,7 +137,7 @@ export async function handleShopifyCallback(request: Request, db: Database = dat
         await exchangeCode(shop, code),
         tx,
       );
-      await tx.insert(syncRuns).values({ connectionId, status: "pending" });
+      await enqueueSync(connectionId, tx);
       sessionCookie = await createSession(merchantId, tx);
     });
     // 200 + same-site navigation: Chrome drops Set-Cookie on a cross-site 302 bounce.

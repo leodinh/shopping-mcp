@@ -17,7 +17,6 @@
     "db:migrate": "tsx --env-file-if-exists=.env scripts/migrate.ts",
     "db:setup": "npm run db:migrate",
     "db:generate": "drizzle-kit generate",
-    "sync": "tsx --env-file-if-exists=.env scripts/sync.ts",
     "test": "tsx --test tests/*.test.ts",
     "test:integration": "tsx --env-file-if-exists=.env --test tests/integration/*.test.ts"
   },

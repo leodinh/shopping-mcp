@@ -97,10 +97,6 @@ export function StoreConnections({ merchant }: { merchant: StoreStatus | null })
               </button>
             </form>
           </div>
-          <p className="mt-4 text-label text-muted">
-            Or sync from this app’s directory:{" "}
-            <code className="font-mono text-heading">npm run sync</code>
-          </p>
         </>
       ) : (
         <>

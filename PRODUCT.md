@@ -33,7 +33,7 @@ Heading toward a public product. The current privacy copy (“local app / should
 Confirmed:
 
 - MCP tools: `search_products`, `get_product`, `compare_products`, `get_checkout` (currently returns `supported: false`).
-- Shopify is the only connector. Sync is manual, full-snapshot, capped at 10,000 products per merchant.
+- Shopify is the only connector. Catalog sync is queued in `sync_runs` and drained by `POST /api/cron/sync` (every 10s), capped at 10,000 products per merchant.
 - Seller session is a cookie after OAuth. Shopify credentials are stored encrypted.
 - HTTP catalog APIs exist (`/api/products`, `/api/merchants`) for the same catalog.
 - Logo asset: `public/logo.png` (cart-with-agent mark).

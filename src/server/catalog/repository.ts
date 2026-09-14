@@ -1,14 +1,15 @@
 import { z } from "zod";
 import { and, desc, eq, gt, inArray, sql } from "drizzle-orm";
-import { minorUnits, searchSchema, type CatalogProduct } from "@/shared/catalog-schema";
+import { minorUnits, searchSchema, toCatalogProduct } from "@/shared/catalog-schema";
 import { database, type Database } from "@/server/db/client";
 import { merchants, products } from "@/server/db/schema";
 
 const productIdSchema = z.uuid().transform((id) => id.toLowerCase());
-const productIdsSchema = z.array(productIdSchema).min(2).max(5).refine(
-  (ids) => new Set(ids).size === ids.length,
-  "Product IDs must be unique",
-);
+const productIdsSchema = z
+  .array(productIdSchema)
+  .min(2)
+  .max(5)
+  .refine((ids) => new Set(ids).size === ids.length, "Product IDs must be unique");
 
 const productSelect = {
   id: products.id,
@@ -35,7 +36,9 @@ function catalogWhere(filters: ReturnType<typeof searchSchema.parse>) {
     filters.q === "" ? undefined : sql`${products.searchDocument} @@ ${tsquery}`,
     filters.merchantId ? eq(products.merchantId, filters.merchantId) : undefined,
     eq(products.currency, filters.currency),
-    filters.maxPrice === undefined ? undefined : sql`${products.priceMinor} <= ${minorUnits(filters.maxPrice)}::bigint`,
+    filters.maxPrice === undefined
+      ? undefined
+      : sql`${products.priceMinor} <= ${minorUnits(filters.maxPrice)}::bigint`,
     filters.inStock === "true" ? gt(products.inventory, 0) : undefined,
   );
 }
@@ -55,11 +58,15 @@ export async function searchProducts(input: unknown, db?: Database) {
         .from(products)
         .innerJoin(merchants, eq(products.merchantId, merchants.id))
         .where(where)
-        .orderBy(desc(sql`ts_rank(${products.searchDocument}, ${tsquery})`), products.name, products.id)
+        .orderBy(
+          desc(sql`ts_rank(${products.searchDocument}, ${tsquery})`),
+          products.name,
+          products.id,
+        )
         .limit(filters.limit)
         .offset(filters.offset);
       return {
-        products: rows as unknown as CatalogProduct[],
+        products: rows.map(toCatalogProduct),
         total: countRow.total,
         limit: filters.limit,
         offset: filters.offset,
@@ -76,7 +83,7 @@ export async function getProductById(id: string, db?: Database) {
     .from(products)
     .innerJoin(merchants, eq(products.merchantId, merchants.id))
     .where(and(eq(products.active, true), eq(products.id, productId)));
-  return (row as unknown as CatalogProduct | undefined) ?? null;
+  return row ? toCatalogProduct(row) : null;
 }
 
 export async function compareProducts(ids: string[], db?: Database) {
@@ -86,7 +93,7 @@ export async function compareProducts(ids: string[], db?: Database) {
     .from(products)
     .innerJoin(merchants, eq(products.merchantId, merchants.id))
     .where(and(eq(products.active, true), inArray(products.id, productIds)));
-  const byId = new Map((rows as unknown as CatalogProduct[]).map((product) => [product.id, product]));
+  const byId = new Map(rows.map(toCatalogProduct).map((product) => [product.id, product]));
   return {
     products: productIds.flatMap((productId) => {
       const product = byId.get(productId);
@@ -105,6 +112,7 @@ export async function getCheckout(id: string, db?: Database) {
     merchant: product.merchant,
     checkoutUrl: null,
     productUrl: product.productUrl,
-    message: "Merchant checkout is not integrated yet. Use the product URL until a real checkout exists.",
+    message:
+      "Merchant checkout is not integrated yet. Use the product URL until a real checkout exists.",
   };
 }

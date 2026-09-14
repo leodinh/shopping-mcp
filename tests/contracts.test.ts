@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { ZodError } from "zod";
 import { validateSnapshot } from "@/server/connectors/contract";
-import { minorUnits, searchSchema } from "@/shared/catalog-schema";
+import { minorUnits, searchSchema, toCatalogProduct } from "@/shared/catalog-schema";
 import { compareProducts, getProductById } from "@/server/catalog/repository";
 import { searchProductsInput, toCatalogSearch } from "@/server/mcp/search-products";
 import { compareProductsInput } from "@/server/mcp/compare-products";
@@ -44,4 +44,16 @@ test("compare and get-product reject invalid IDs before querying", async () => {
   await assert.rejects(() => compareProducts([id.toUpperCase(), id]), ZodError);
   await assert.rejects(() => compareProducts([...Array.from({ length: 6 }, () => randomUUID())]), ZodError);
   assert.equal(compareProductsInput.safeParse({ productIds: [id, randomUUID()] }).success, true);
+});
+test("catalog DTO converts Date updatedAt to an ISO string", () => {
+  const dto = toCatalogProduct({
+    id: "00000000-0000-0000-0000-000000000001",
+    externalId: "one", name: "Backpack", description: "Black",
+    priceMinor: 8900, currency: "USD", images: [], inventory: 1,
+    productUrl: "https://store.example/one",
+    updatedAt: new Date("2026-09-13T18:00:00.000Z"),
+    merchant: { id: "00000000-0000-0000-0000-000000000002", name: "Demo", slug: "demo" },
+  });
+  assert.equal(typeof dto.updatedAt, "string");
+  assert.equal(dto.updatedAt, "2026-09-13T18:00:00.000Z");
 });

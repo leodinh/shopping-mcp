@@ -40,12 +40,16 @@ test("PostgreSQL sync and search lifecycle", async () => {
     const initial = await searchProducts({ q: "black backpack", merchantId: merchantIds[0], maxPrice: "100" }, db);
     assert.equal(initial.total, 1);
     const stableId = initial.products[0].id;
-    assert.equal((await getProductById(stableId, db))?.id, stableId);
+    assert.equal(typeof initial.products[0].updatedAt, "string");
+    const fetched = await getProductById(stableId, db);
+    assert.equal(fetched?.id, stableId);
+    assert.equal(typeof fetched?.updatedAt, "string");
     assert.equal(await getProductById(randomUUID(), db), null);
     const pair = (await searchProducts({ q: "black backpack" }, db)).products.filter((product) => merchantIds.includes(product.merchant.id));
     assert.equal(pair.length, 2);
     const compared = await compareProducts([pair[0].id, pair[1].id], db);
     assert.equal(compared.products.length, 2);
+    assert.equal(typeof compared.products[0].updatedAt, "string");
     assert.deepEqual(compared.missingIds, []);
     assert.equal((await compareProducts([pair[0].id, randomUUID()], db)).missingIds.length, 1);
     const checkout = await getCheckout(stableId, db);

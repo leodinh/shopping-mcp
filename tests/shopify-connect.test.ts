@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { createHmac } from "node:crypto";
 import { normalizeShopDomain, shopifyAuthorizeUrl } from "@/server/shopify/connect";
 import { verifyShopifyHmac } from "@/server/shopify/hmac";
-import { readSessionCookie, signSessionCookie } from "@/server/auth/session";
+import { clearSessionCookie, readSessionCookie, signSessionCookie } from "@/server/auth/session";
 
 process.env.SESSION_SECRET = "test-session-secret-32-characters-min";
 process.env.SHOPIFY_API_KEY = "test-key";
@@ -68,4 +68,13 @@ test("accepts a valid Shopify HMAC and rejects a tampered one", () => {
     () => verifyShopifyHmac(new URLSearchParams({ ...params, shop: "evil.myshopify.com", hmac })),
     /Invalid HMAC/,
   );
+});
+
+test("clearSessionCookie expires the seller session cookie", () => {
+  const cookie = clearSessionCookie();
+  assert.match(cookie, /^session=;/);
+  assert.match(cookie, /Max-Age=0/);
+  assert.match(cookie, /Path=\//);
+  assert.match(cookie, /HttpOnly/);
+  assert.match(cookie, /SameSite=Lax/);
 });

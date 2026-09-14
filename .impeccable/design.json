@@ -1,0 +1,344 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-14T20:20:49Z",
+  "title": "Design System: Shopping with Agent",
+  "extensions": {
+    "colorMeta": {
+      "cart-bot-green": {
+        "role": "primary",
+        "displayName": "Cart-Bot Green",
+        "canonical": "#3d6b4f",
+        "tonalRamp": [
+          "oklch(18% 0.04 155)",
+          "oklch(28% 0.05 155)",
+          "oklch(38% 0.06 155)",
+          "oklch(45% 0.07 155)",
+          "oklch(52% 0.08 155)",
+          "oklch(62% 0.07 155)",
+          "oklch(75% 0.05 155)",
+          "oklch(90% 0.03 155)"
+        ]
+      },
+      "lit-cart-bot": {
+        "role": "primary",
+        "displayName": "Lit Cart-Bot",
+        "canonical": "#4a8260",
+        "tonalRamp": [
+          "oklch(20% 0.04 155)",
+          "oklch(30% 0.05 155)",
+          "oklch(40% 0.06 155)",
+          "oklch(50% 0.07 155)",
+          "oklch(55% 0.08 155)",
+          "oklch(65% 0.07 155)",
+          "oklch(78% 0.05 155)",
+          "oklch(92% 0.03 155)"
+        ]
+      },
+      "soft-moss": {
+        "role": "primary",
+        "displayName": "Soft Moss",
+        "canonical": "#8fbf9a",
+        "tonalRamp": [
+          "oklch(25% 0.04 150)",
+          "oklch(35% 0.05 150)",
+          "oklch(45% 0.06 150)",
+          "oklch(55% 0.07 150)",
+          "oklch(70% 0.08 150)",
+          "oklch(80% 0.06 150)",
+          "oklch(88% 0.04 150)",
+          "oklch(95% 0.02 150)"
+        ]
+      },
+      "deep-leaf-bubble": {
+        "role": "primary",
+        "displayName": "Deep Leaf Bubble",
+        "canonical": "#2a3d31",
+        "tonalRamp": [
+          "oklch(15% 0.03 155)",
+          "oklch(22% 0.035 155)",
+          "oklch(28% 0.04 155)",
+          "oklch(34% 0.04 155)",
+          "oklch(42% 0.045 155)",
+          "oklch(55% 0.04 155)",
+          "oklch(70% 0.03 155)",
+          "oklch(88% 0.02 155)"
+        ]
+      },
+      "after-hours-ground": {
+        "role": "neutral",
+        "displayName": "After-Hours Ground",
+        "canonical": "#121212",
+        "tonalRamp": [
+          "oklch(8% 0 0)",
+          "oklch(12% 0 0)",
+          "oklch(16% 0 0)",
+          "oklch(22% 0 0)",
+          "oklch(35% 0 0)",
+          "oklch(55% 0 0)",
+          "oklch(75% 0 0)",
+          "oklch(95% 0 0)"
+        ]
+      },
+      "message-charcoal": {
+        "role": "neutral",
+        "displayName": "Message Charcoal",
+        "canonical": "#1e1e1e",
+        "tonalRamp": [
+          "oklch(10% 0 0)",
+          "oklch(14% 0 0)",
+          "oklch(18% 0 0)",
+          "oklch(24% 0 0)",
+          "oklch(38% 0 0)",
+          "oklch(55% 0 0)",
+          "oklch(75% 0 0)",
+          "oklch(94% 0 0)"
+        ]
+      },
+      "outer-void": {
+        "role": "neutral",
+        "displayName": "Outer Void",
+        "canonical": "#0a0a0a",
+        "tonalRamp": [
+          "oklch(5% 0 0)",
+          "oklch(8% 0 0)",
+          "oklch(12% 0 0)",
+          "oklch(18% 0 0)",
+          "oklch(30% 0 0)",
+          "oklch(50% 0 0)",
+          "oklch(72% 0 0)",
+          "oklch(92% 0 0)"
+        ]
+      },
+      "warm-ink": {
+        "role": "neutral",
+        "displayName": "Warm Ink",
+        "canonical": "#f4f4f0",
+        "tonalRamp": [
+          "oklch(20% 0.01 100)",
+          "oklch(35% 0.01 100)",
+          "oklch(50% 0.01 100)",
+          "oklch(65% 0.01 100)",
+          "oklch(80% 0.01 100)",
+          "oklch(90% 0.01 100)",
+          "oklch(95% 0.01 100)",
+          "oklch(97% 0.008 100)"
+        ]
+      },
+      "sage-whisper": {
+        "role": "neutral",
+        "displayName": "Sage Whisper",
+        "canonical": "#b7c4b8",
+        "tonalRamp": [
+          "oklch(25% 0.02 145)",
+          "oklch(35% 0.025 145)",
+          "oklch(45% 0.03 145)",
+          "oklch(55% 0.03 145)",
+          "oklch(70% 0.03 145)",
+          "oklch(78% 0.025 145)",
+          "oklch(88% 0.02 145)",
+          "oklch(95% 0.01 145)"
+        ]
+      },
+      "moss-divider": {
+        "role": "neutral",
+        "displayName": "Moss Divider",
+        "canonical": "#2a332c",
+        "tonalRamp": [
+          "oklch(12% 0.015 150)",
+          "oklch(18% 0.02 150)",
+          "oklch(24% 0.02 150)",
+          "oklch(30% 0.025 150)",
+          "oklch(42% 0.025 150)",
+          "oklch(58% 0.02 150)",
+          "oklch(75% 0.015 150)",
+          "oklch(90% 0.01 150)"
+        ]
+      },
+      "clay-alert": {
+        "role": "secondary",
+        "displayName": "Clay Alert",
+        "canonical": "#e8b4a2",
+        "tonalRamp": [
+          "oklch(30% 0.05 40)",
+          "oklch(40% 0.06 40)",
+          "oklch(50% 0.07 40)",
+          "oklch(60% 0.08 40)",
+          "oklch(72% 0.08 40)",
+          "oklch(80% 0.07 40)",
+          "oklch(88% 0.05 40)",
+          "oklch(95% 0.03 40)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Page titles on docs, privacy, and seller routes."
+      },
+      "title": {
+        "displayName": "Wordmark / Title",
+        "purpose": "Header product name at sm+; smaller bold wordmark on narrow viewports."
+      },
+      "intro": {
+        "displayName": "Intro",
+        "purpose": "Supporting paragraph under page headlines."
+      },
+      "body": {
+        "displayName": "Body / Talk",
+        "purpose": "Bubble copy, ink list steps, and default reading size."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Nav, field labels, captions, composer steps, and meta."
+      },
+      "mono": {
+        "displayName": "Mono Filename",
+        "purpose": "shopping-mcp.json and rare CLI identifiers only."
+      }
+    },
+    "shadows": [
+      {
+        "name": "shell-glow",
+        "value": "inset 0 0 120px 40px rgb(61 107 79 / 0.14)",
+        "purpose": "After-hours laptop glow on the max-w-3xl paper shell."
+      }
+    ],
+    "motion": [
+      {
+        "name": "thread-enter",
+        "value": "0.5s cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Thread children rise from translateY(0.4rem); stagger 0 / 0.12s / 0.24s when motion is allowed."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Filled cart-bot action for seller sync and connect flows.",
+      "html": "<button class=\"ds-btn-primary\" type=\"button\">Continue to Shopify</button>",
+      "css": ".ds-btn-primary { display: inline-flex; min-height: 2.75rem; align-items: center; justify-content: center; border-radius: 0.75rem; border: 1px solid #3d6b4f; background: #3d6b4f; padding: 0 1.5rem; font-family: Atkinson Hyperlegible, ui-sans-serif, sans-serif; font-size: 1rem; font-weight: 500; line-height: 1.6; color: #f4f4f0; text-decoration: none; cursor: pointer; transition: background 0.15s ease; } .ds-btn-primary:hover { background: #4a8260; } .ds-btn-primary:focus-visible { outline: 2px solid #8fbf9a; outline-offset: 2px; } .ds-btn-primary:disabled { cursor: wait; opacity: 0.6; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Quiet outline action for disconnect and non-primary seller controls.",
+      "html": "<button class=\"ds-btn-secondary\" type=\"button\">Disconnect</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; min-height: 2.75rem; align-items: center; justify-content: center; border-radius: 0.75rem; border: 1px solid #2a332c; background: transparent; padding: 0 1.5rem; font-family: Atkinson Hyperlegible, ui-sans-serif, sans-serif; font-size: 1rem; font-weight: 500; line-height: 1.6; color: #f4f4f0; text-decoration: none; cursor: pointer; transition: background 0.15s ease; } .ds-btn-secondary:hover { background: #1e1e1e; } .ds-btn-secondary:focus-visible { outline: 2px solid #8fbf9a; outline-offset: 2px; } .ds-btn-secondary:disabled { cursor: wait; opacity: 0.6; }"
+    },
+    {
+      "name": "Composer Button",
+      "kind": "button",
+      "refersTo": "button-composer",
+      "description": "Full-width sticky CTA that downloads shopping-mcp.json.",
+      "html": "<a class=\"ds-btn-composer\" href=\"#\">Download MCP config</a>",
+      "css": ".ds-btn-composer { display: inline-flex; width: 100%; min-height: 3rem; align-items: center; justify-content: center; border-radius: 0.75rem; border: 1px solid #3d6b4f; background: #3d6b4f; padding: 0 1rem; font-family: Atkinson Hyperlegible, ui-sans-serif, sans-serif; font-size: 1rem; font-weight: 500; line-height: 1.375; color: #f4f4f0; text-align: center; text-decoration: none; cursor: pointer; transition: background 0.15s ease; } .ds-btn-composer:hover { background: #4a8260; } .ds-btn-composer:focus-visible { outline: 2px solid #8fbf9a; outline-offset: 2px; }"
+    },
+    {
+      "name": "Field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "Shopify domain and other dark chat-column inputs.",
+      "html": "<label class=\"ds-field-label\">Shopify domain<input class=\"ds-field\" type=\"text\" placeholder=\"your-store.myshopify.com\" /></label>",
+      "css": ".ds-field-label { display: flex; flex-direction: column; gap: 0.5rem; font-family: Atkinson Hyperlegible, ui-sans-serif, sans-serif; font-size: 0.8125rem; font-weight: 700; line-height: 1.4; color: #f4f4f0; } .ds-field { min-height: 2.75rem; width: 100%; border-radius: 0.75rem; border: 1px solid #2a332c; background: #1e1e1e; padding: 0 0.75rem; font-family: Atkinson Hyperlegible, ui-sans-serif, sans-serif; font-size: 1rem; line-height: 1.6; color: #f4f4f0; } .ds-field::placeholder { color: #b7c4b8; } .ds-field:focus-visible { outline: 2px solid #8fbf9a; outline-offset: 2px; }"
+    },
+    {
+      "name": "Header Nav",
+      "kind": "nav",
+      "refersTo": null,
+      "description": "Wordmark plus label-size primary links on a moss hairline header.",
+      "html": "<header class=\"ds-header\"><a class=\"ds-wordmark\" href=\"#\">Shopping with Agent</a><nav class=\"ds-nav\" aria-label=\"Primary\"><a href=\"#\">Docs</a><a href=\"#\">Store owners</a></nav></header>",
+      "css": ".ds-header { display: flex; min-height: 3.5rem; align-items: center; justify-content: space-between; gap: 0.75rem; border-bottom: 1px solid #2a332c; padding: 0 1rem; background: #121212; font-family: Atkinson Hyperlegible, ui-sans-serif, sans-serif; } .ds-wordmark { font-size: 0.875rem; font-weight: 700; color: #f4f4f0; text-decoration: none; } .ds-nav { display: flex; gap: 1.25rem; } .ds-nav a { font-size: 0.8125rem; font-weight: 700; line-height: 1.4; color: #b7c4b8; text-decoration: none; } .ds-nav a:hover { color: #f4f4f0; } .ds-nav a:focus-visible { outline: 2px solid #8fbf9a; outline-offset: 2px; }"
+    },
+    {
+      "name": "User Bubble",
+      "kind": "custom",
+      "refersTo": "bubble-user",
+      "description": "Right-aligned shopper message in deep-leaf fill.",
+      "html": "<p class=\"ds-bubble-user\">Find a backpack for commuting.</p>",
+      "css": ".ds-bubble-user { margin-left: auto; max-width: min(75%, 36rem); border-radius: 1rem; background: #2a3d31; padding: 0.75rem 1rem; font-family: Atkinson Hyperlegible, ui-sans-serif, sans-serif; font-size: 1rem; line-height: 1.6; color: #f4f4f0; word-break: break-word; }"
+    },
+    {
+      "name": "Agent Bubble",
+      "kind": "custom",
+      "refersTo": "bubble-agent",
+      "description": "Left-aligned assistant message in message charcoal.",
+      "html": "<div class=\"ds-bubble-agent\"><p>Three that fit a laptop and a rain commute.</p></div>",
+      "css": ".ds-bubble-agent { margin-right: auto; max-width: min(75%, 36rem); border-radius: 1rem; background: #1e1e1e; padding: 0.75rem 1rem; font-family: Atkinson Hyperlegible, ui-sans-serif, sans-serif; font-size: 1rem; line-height: 1.6; color: #f4f4f0; word-break: break-word; } .ds-bubble-agent p { margin: 0; }"
+    },
+    {
+      "name": "Compare Card",
+      "kind": "card",
+      "refersTo": "compare-card",
+      "description": "In-thread product compare face nested inside an agent bubble.",
+      "html": "<div class=\"ds-compare-card\"><p class=\"ds-compare-title\">Ridge Commuter</p><p class=\"ds-compare-meta\">22 L · rain flap · $120</p></div>",
+      "css": ".ds-compare-card { border-radius: 0.75rem; background: #121212; padding: 0.75rem; font-family: Atkinson Hyperlegible, ui-sans-serif, sans-serif; } .ds-compare-title { margin: 0; font-size: 1rem; font-weight: 700; line-height: 1.6; color: #f4f4f0; } .ds-compare-meta { margin: 0.25rem 0 0; font-size: 0.8125rem; font-weight: 400; line-height: 1.4; color: #b7c4b8; }"
+    },
+    {
+      "name": "Sticky Composer",
+      "kind": "custom",
+      "refersTo": "button-composer",
+      "description": "Homepage sticky download strip with mono filename and setup steps.",
+      "html": "<aside class=\"ds-composer\"><a class=\"ds-btn-composer\" href=\"#\">Download MCP config</a><p class=\"ds-composer-file\">shopping-mcp.json</p><ol class=\"ds-composer-steps\"><li>Download the file.</li><li>Add it to your assistant as a custom MCP server.</li><li>Ask it to search and compare products.</li></ol></aside>",
+      "css": ".ds-composer { border-top: 1px solid #2a332c; background: #121212; padding: 1rem; font-family: Atkinson Hyperlegible, ui-sans-serif, sans-serif; } .ds-composer .ds-btn-composer { display: inline-flex; width: 100%; min-height: 3rem; align-items: center; justify-content: center; border-radius: 0.75rem; border: 1px solid #3d6b4f; background: #3d6b4f; padding: 0 1rem; font-size: 1rem; font-weight: 500; line-height: 1.375; color: #f4f4f0; text-align: center; text-decoration: none; } .ds-composer .ds-btn-composer:hover { background: #4a8260; } .ds-composer .ds-btn-composer:focus-visible { outline: 2px solid #8fbf9a; outline-offset: 2px; } .ds-composer-file { margin: 0.75rem 0 0; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.8125rem; line-height: 1.4; letter-spacing: -0.025em; color: #b7c4b8; } .ds-composer-steps { margin: 0.75rem 0 0; padding-left: 1.25rem; font-size: 0.8125rem; line-height: 1.4; color: #b7c4b8; } .ds-composer-steps li + li { margin-top: 0.25rem; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "After-Hours Transcript",
+    "overview": "The product UI is a single dark chat column — like a laptop left open after midnight. Ground is near-black, talk happens in rounded bubbles, and the only vivid green is the cart-bot accent that lights the room. The homepage *is* the conversation: a seeded transcript of an assistant shopping, then a sticky composer that downloads `shopping-mcp.json` so the visitor’s assistant can do the same. It refuses a split-audience two-card hero; merchants and docs live on secondary routes with the same talk type and quiet chrome.\n\nDensity stays conversational: one narrow content column, hairline moss dividers for header/footer/composer, tonal bubble surfaces instead of card grids. Motion is a short stagger-enter on thread children when reduced motion is off. Mono appears only for the config filename and occasional CLI hints — never for body talk.",
+    "keyCharacteristics": [
+      "Full-viewport chat shell with inset cart-bot glow on after-hours ground",
+      "Rounded message bubbles (user deep-leaf, agent charcoal) plus in-thread compare stacks",
+      "Sticky bottom composer as the primary CTA surface",
+      "Atkinson Hyperlegible for all talk; ui-monospace reserved for shopping-mcp.json",
+      "Cart-bot green for actions and focus; clay only for errors and disabled connection states"
+    ],
+    "rules": [
+      {
+        "name": "The One Glow Rule",
+        "body": "Cart-bot green is the only chromatic accent for actions and atmosphere; clay is reserved for failure and disabled connection. Soft moss marks focus and healthy status, not marketing chrome.",
+        "section": "colors"
+      },
+      {
+        "name": "The Bubble Ink Rule",
+        "body": "Talk always uses warm ink on charcoal or deep-leaf; never put primary green fills behind long reading copy.",
+        "section": "colors"
+      },
+      {
+        "name": "The Talk Face Rule",
+        "body": "Atkinson Hyperlegible carries all human-readable UI. Do not introduce a second display family.",
+        "section": "typography"
+      },
+      {
+        "name": "The Mono Filename Rule",
+        "body": "font-mono appears for config/CLI identifiers only — never for headlines, nav, or bubble prose.",
+        "section": "typography"
+      },
+      {
+        "name": "The Glow-Not-Card Rule",
+        "body": "Prefer inset green glow and tonal bubble fills for depth. Do not put drop shadows on the shell, header, footer, or composer.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do keep shopper surfaces as one conversation column with bubbles and a sticky composer download.",
+      "Do use Atkinson Hyperlegible for talk and reserve mono for shopping-mcp.json (and rare CLI).",
+      "Do use cart-bot green for primary actions, focus glow, and the shell inset atmosphere.",
+      "Do keep content at max-w-xl inside a max-w-3xl glowing shell on outer void."
+    ],
+    "donts": [
+      "Don't ship a split-audience two-card hero or merchant-first homepage.",
+      "Don't introduce a second display typeface or use mono for conversational copy.",
+      "Don't spread clay alert or soft moss as decorative accents; clay is failure/disabled only.",
+      "Don't reuse drop shadows on chrome — keep elevation tonal + inset glow outside the in-thread compare stack."
+    ]
+  }
+}

@@ -14,6 +14,14 @@ type StoreStatus = {
   productCount: number;
 };
 
+function syncedAt(value: string) {
+  return `${new Intl.DateTimeFormat("en", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "UTC",
+  }).format(new Date(value))} UTC`;
+}
+
 export function StoreConnections({ merchant }: { merchant: StoreStatus | null }) {
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
@@ -32,84 +40,82 @@ export function StoreConnections({ merchant }: { merchant: StoreStatus | null })
       });
       const payload = (await response.json()) as { authorizationUrl?: string; error?: string };
       if (!response.ok || !payload.authorizationUrl) {
-        setMessage(payload.error || "Could not start Shopify connection.");
+        setMessage(payload.error || "Could not start Shopify connection. Check the domain and try again.");
         setPending(false);
         return;
       }
       window.location.assign(payload.authorizationUrl);
     } catch {
-      setMessage("Could not start Shopify connection.");
+      setMessage("Could not start Shopify connection. Check your network and try again.");
       setPending(false);
     }
   }
 
   return (
-    <section className="px-5 py-10 sm:px-12 sm:py-18" aria-label="Your store" aria-busy={pending}>
+    <section className="mx-auto w-full max-w-xl flex-1 overflow-y-auto px-5 py-10 sm:px-8" aria-label="Your store" aria-busy={pending}>
       {connected ? (
         <>
-          <p className="text-label font-medium">YOUR STORE</p>
-          <h1 className="my-6 text-headline font-semibold text-heading sm:text-headline-lg">
-            {connected.name}
-          </h1>
-          <div className="my-8 grid grid-cols-1 gap-8 border border-line bg-card p-8 sm:grid-cols-2">
-            <div>
-              <span className="mb-3 block text-label font-medium text-muted">Connection</span>
-              <strong
-                className={`text-card-heading font-semibold sm:text-card-heading-lg ${connected.enabled ? "text-stock" : "text-sold-out"}`}
-              >
-                {connected.enabled ? "Shopify connected ✓" : "Disabled"}
-              </strong>
+          <h1 className="text-headline font-bold text-heading">{connected.name}</h1>
+          <dl className="mt-8 divide-y divide-line border-y border-line">
+            <div className="flex justify-between gap-4 py-4">
+              <dt className="text-muted">Connection</dt>
+              <dd className={`font-bold ${connected.enabled ? "text-stock" : "text-sold-out"}`}>
+                {connected.enabled ? "Shopify connected" : "Disabled"}
+              </dd>
             </div>
-            <div>
-              <span className="mb-3 block text-label font-medium text-muted">Products</span>
-              <strong className="text-card-heading font-semibold sm:text-card-heading-lg">
-                {connected.productCount}
-              </strong>
+            <div className="flex justify-between gap-4 py-4">
+              <dt className="text-muted">Products</dt>
+              <dd className="font-bold text-heading">{connected.productCount}</dd>
             </div>
-            <div>
-              <span className="mb-3 block text-label font-medium text-muted">Sync status</span>
-              <strong
-                className={`text-card-heading font-semibold sm:text-card-heading-lg ${connected.lastError ? "text-sold-out" : "text-stock"}`}
-              >
-                {connected.lastError
-                  ? "Sync failed"
-                  : connected.lastSyncedAt
-                    ? "Synced"
-                    : "Awaiting sync"}
-              </strong>
+            <div className="flex justify-between gap-4 py-4">
+              <dt className="text-muted">Sync</dt>
+              <dd className={`font-bold ${connected.lastError ? "text-sold-out" : "text-heading"}`}>
+                {connected.lastError ? "Sync failed" : connected.lastSyncedAt ? "Synced" : "Awaiting sync"}
+              </dd>
             </div>
-            <div>
-              <span className="mb-3 block text-label font-medium text-muted">Last synced</span>
-              <strong className="text-card-heading font-semibold sm:text-card-heading-lg">
+            <div className="flex justify-between gap-4 py-4">
+              <dt className="text-muted">Last synced</dt>
+              <dd className="text-heading">
                 {connected.lastSyncedAt ? (
-                  <time className="text-base font-normal" dateTime={connected.lastSyncedAt}>
-                    {connected.lastSyncedAt.slice(0, 16).replace("T", " ")} UTC
-                  </time>
+                  <time dateTime={connected.lastSyncedAt}>{syncedAt(connected.lastSyncedAt)}</time>
                 ) : (
                   "Not yet"
                 )}
-              </strong>
+              </dd>
             </div>
+          </dl>
+          {connected.lastError ? <p className="mt-4 text-label text-sold-out">{connected.lastError}</p> : null}
+          <div className="mt-8 flex flex-wrap gap-3">
+            <form action="/api/seller/sync" method="post">
+              <button type="submit" className="btn">
+                Retry sync
+              </button>
+            </form>
+            <form action="/api/seller/disconnect" method="post">
+              <button type="submit" className="btn-secondary">
+                Disconnect
+              </button>
+            </form>
           </div>
+          <p className="mt-4 text-label text-muted">
+            Or sync from this app’s directory:{" "}
+            <code className="font-mono text-heading">npm run sync</code>
+          </p>
         </>
       ) : (
         <>
-          <h1 className="my-6 text-headline font-semibold text-heading sm:text-headline-lg">
-            Connect your store.
-          </h1>
-          <p className="text-intro text-muted sm:text-intro-lg">
-            Enter your Shopify domain to connect products and keep track of sync status.
+          <h1 className="text-headline font-bold text-heading">Add a store</h1>
+          <p className="mt-4 text-intro text-muted">
+            You’ll authorize on Shopify next. We keep a session cookie so this dashboard can show
+            that store.
           </p>
-          <form
-            onSubmit={connectShopify}
-            className="mt-8 flex flex-col items-stretch gap-4 sm:flex-row sm:items-end"
-          >
-            <label htmlFor="shop-domain" className="flex flex-col gap-2 text-label font-medium">
+          <form onSubmit={connectShopify} className="mt-8 flex flex-col gap-4">
+            <label htmlFor="shop-domain" className="flex flex-col gap-2 text-label font-bold text-heading">
               Shopify domain
               <input
                 id="shop-domain"
                 name="shop"
-                className="field w-full min-w-0 sm:min-w-64"
+                className="field w-full"
                 placeholder="your-store.myshopify.com"
                 autoComplete="off"
                 spellCheck={false}
@@ -118,12 +124,19 @@ export function StoreConnections({ merchant }: { merchant: StoreStatus | null })
               />
             </label>
             <button className="btn" disabled={pending}>
-              {pending ? "Connecting…" : "Connect Shopify"}
+              {pending ? "Redirecting to Shopify…" : "Continue to Shopify"}
             </button>
           </form>
+          <p className="mt-4 text-label text-muted">
+            See{" "}
+            <a href="/privacy" className="font-bold text-heading underline decoration-primary underline-offset-4">
+              Privacy
+            </a>{" "}
+            for what the cookie stores.
+          </p>
         </>
       )}
-      <div role="status" aria-live="polite" className="my-4 text-label font-medium text-sold-out">
+      <div role="status" aria-live="polite" className="mt-4 text-label font-bold text-sold-out">
         {message}
       </div>
     </section>

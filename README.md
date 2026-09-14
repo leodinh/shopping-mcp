@@ -24,6 +24,8 @@ Leave that terminal running. It starts Next.js at http://127.0.0.1:3000. In a se
 npm run db:migrate
 ```
 
+Existing databases built by the old SQL runner must be recreated before `npm run db:migrate`, because the migration ledger changed.
+
 Open http://127.0.0.1:3000/seller and connect a Shopify store. The seller page shows that store's connection state, product count, and sync status.
 
 Create an empty `shopping-mcp` database and set `DATABASE_URL` in `.env`. Include the PostgreSQL user (`postgresql://USER@localhost:5432/shopping-mcp`). Add `:PASSWORD` after the user only when the server requires one. Localhost credentials are for development only.

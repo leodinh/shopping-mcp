@@ -139,6 +139,7 @@ export async function handleShopifyCallback(request: Request, db: Database = dat
       await tx.insert(syncRuns).values({ connectionId, status: "pending" });
       sessionCookie = await createSession(merchantId, tx);
     });
+    // 200 + same-site navigation: Chrome drops Set-Cookie on a cross-site 302 bounce.
     return new Response(
       `<!doctype html><meta http-equiv="refresh" content="0;url=/seller"><script>location.replace("/seller")</script><a href="/seller">Continue</a>`,
       {

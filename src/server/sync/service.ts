@@ -20,7 +20,13 @@ export async function syncConnection(
     locked = Boolean(lock.rows[0]?.acquired);
     if (!locked) throw new Error("This connection is already syncing");
     const [connection] = await db
-      .select()
+      .select({
+        id: merchantConnections.id,
+        merchantId: merchantConnections.merchantId,
+        enabled: merchantConnections.enabled,
+        connectorType: merchantConnections.connectorType,
+        config: merchantConnections.config,
+      })
       .from(merchantConnections)
       .where(eq(merchantConnections.id, connectionId));
     if (!connection) throw new Error("Merchant connection not found");

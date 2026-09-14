@@ -4,6 +4,7 @@ import { databaseFrom, pool } from "@/server/db/client";
 import { type MerchantConnector, validateSnapshot } from "@/server/connectors/contract";
 import { getConnector } from "@/server/connectors/registry";
 import { merchantConnections, products } from "@/server/db/schema";
+import { decryptCredentials } from "@/server/shopify/credentials";
 
 export async function syncConnection(
   connectionId: string,
@@ -26,6 +27,7 @@ export async function syncConnection(
         enabled: merchantConnections.enabled,
         connectorType: merchantConnections.connectorType,
         config: merchantConnections.config,
+        credentialsEncrypted: merchantConnections.credentialsEncrypted,
       })
       .from(merchantConnections)
       .where(eq(merchantConnections.id, connectionId));
@@ -35,7 +37,15 @@ export async function syncConnection(
       .update(merchantConnections)
       .set({ lastAttemptAt: sql`now()` })
       .where(eq(merchantConnections.id, connectionId));
-    const catalog = validateSnapshot(await (connectorOverride ?? getConnector(connection.connectorType)).fetchCatalog(connection.config));
+    const credentials = connection.credentialsEncrypted
+      ? decryptCredentials(connection.credentialsEncrypted)
+      : null;
+    const catalog = validateSnapshot(
+      await (connectorOverride ?? getConnector(connection.connectorType)).fetchCatalog({
+        ...connection.config,
+        ...(credentials ? { accessToken: credentials.accessToken } : {}),
+      }),
+    );
     return await db.transaction(async (tx) => {
       for (const product of catalog) {
         await tx

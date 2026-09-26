@@ -16,11 +16,6 @@ export const searchSchema = z.object({
   offset: z.coerce.number().int().min(0).max(100000).default(0),
 });
 
-export function minorUnits(value: string): number {
-  const [whole, fraction = ""] = value.split(".");
-  return Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
-}
-
 /** Search API DTO: product fields plus nested merchant. Not the Product row. */
 export type CatalogProduct = {
   id: string;
@@ -35,9 +30,3 @@ export type CatalogProduct = {
   updatedAt: string;
   merchant: { id: string; name: string; slug: string };
 };
-
-export type CatalogProductRow = Omit<CatalogProduct, "updatedAt"> & { updatedAt: Date };
-
-export function toCatalogProduct(row: CatalogProductRow): CatalogProduct {
-  return { ...row, updatedAt: row.updatedAt.toISOString() };
-}

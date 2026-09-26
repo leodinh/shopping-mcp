@@ -1,7 +1,7 @@
 import { Controller, Get, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
 import { ZodError } from "zod";
-import { searchProducts } from "@shopping-mcp/application";
+import { searchProducts } from "@shopping-mcp/commerce/catalog";
 
 @Controller("api/products")
 export class CatalogController {

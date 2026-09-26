@@ -1,6 +1,8 @@
+import type { SellerResponse } from "@shopping-mcp/contracts";
 import { Controller, Get, Post, Req, Res } from "@nestjs/common";
 import type { Request, Response } from "express";
-import { destroySession, enqueueSync, getDashboardMerchant } from "@shopping-mcp/application";
+import { destroySessionCookie, getDashboardMerchant } from "./session";
+import { enqueueSync } from "@shopping-mcp/commerce/sync";
 
 @Controller("api/seller")
 export class AuthController {
@@ -8,11 +10,7 @@ export class AuthController {
   async current(@Req() req: Request, @Res() res: Response) {
     try {
       const merchant = await getDashboardMerchant(req.headers.cookie ?? null);
-      res.json({
-        merchant: merchant
-          ? { ...merchant, lastSyncedAt: merchant.lastSyncedAt?.toISOString() ?? null }
-          : null,
-      });
+      res.json({ merchant } satisfies SellerResponse);
     } catch (error) {
       console.error("Seller dashboard failed", error);
       res.status(503).json({ error: "Store status unavailable." });
@@ -32,7 +30,7 @@ export class AuthController {
 
   @Post("disconnect")
   async disconnect(@Req() req: Request, @Res() res: Response) {
-    const setCookie = await destroySession(req.headers.cookie ?? null);
+    const setCookie = await destroySessionCookie(req.headers.cookie ?? null);
     res.setHeader("Set-Cookie", setCookie);
     res.json({ ok: true });
   }

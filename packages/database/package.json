@@ -9,7 +9,10 @@
   },
   "scripts": {
     "migrate": "tsx --env-file-if-exists=../../.env src/migrate.ts",
-    "generate": "drizzle-kit generate"
+    "generate": "drizzle-kit generate",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint src --max-warnings=0",
+    "lint:fix": "eslint src --max-warnings=0 --fix"
   },
   "dependencies": {
     "@shopping-mcp/config": "workspace:*",
@@ -19,6 +22,8 @@
   "devDependencies": {
     "@types/pg": "^8.0.0",
     "drizzle-kit": "^0.31.10",
-    "tsx": "^4.0.0"
+    "tsx": "^4.0.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.0.0"
   }
 }

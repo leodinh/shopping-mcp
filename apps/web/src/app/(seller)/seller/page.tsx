@@ -1,4 +1,4 @@
-import { StoreConnections } from "@/components/store-connection";
+import { StoreConnections } from "@/features/seller/store-connection";
 
 export const dynamic = "force-dynamic";
 

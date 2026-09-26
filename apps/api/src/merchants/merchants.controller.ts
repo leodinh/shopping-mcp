@@ -1,6 +1,6 @@
 import { Controller, Get, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { listMerchants } from "@shopping-mcp/application";
+import { listMerchants } from "@shopping-mcp/commerce/merchants";
 
 @Controller("api/merchants")
 export class MerchantsController {

@@ -1,4 +1,4 @@
-import { drainSyncRuns } from "@shopping-mcp/application";
+import { drainSyncRuns } from "@shopping-mcp/commerce/sync";
 
 export type DrainFn = typeof drainSyncRuns;
 

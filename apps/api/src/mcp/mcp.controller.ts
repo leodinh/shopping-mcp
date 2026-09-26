@@ -1,16 +1,10 @@
 import { All, Controller, Get, Req, Res } from "@nestjs/common";
 import type { Request, Response } from "express";
 import { createMcpHandler } from "mcp-handler";
-import {
-  compareProductsTool,
-  getCheckoutTool,
-  getProductTool,
-  runCompareProductsTool,
-  runGetCheckoutTool,
-  runGetProductTool,
-  runSearchProductsTool,
-  searchProductsTool,
-} from "@shopping-mcp/application";
+import { compareProductsTool, runCompareProductsTool } from "./tools/compare-products";
+import { getCheckoutTool, runGetCheckoutTool } from "./tools/get-checkout";
+import { getProductTool, runGetProductTool } from "./tools/get-product";
+import { runSearchProductsTool, searchProductsTool } from "./tools/search-products";
 import { sendFetchResponse, toFetchRequest } from "../fetch-adapter";
 
 const mcpHandler = createMcpHandler(
@@ -36,6 +30,8 @@ export class McpController {
     const origin = `${req.protocol}://${req.get("host")}`;
     res.setHeader("content-type", "application/json");
     res.setHeader("content-disposition", 'attachment; filename="shopping-mcp.json"');
-    res.send(JSON.stringify({ mcpServers: { "shopping-mcp": { url: `${origin}/api/mcp` } } }, null, 2));
+    res.send(
+      JSON.stringify({ mcpServers: { "shopping-mcp": { url: `${origin}/api/mcp` } } }, null, 2),
+    );
   }
 }

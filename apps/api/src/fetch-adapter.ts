@@ -14,8 +14,7 @@ export async function toFetchRequest(req: IncomingMessage): Promise<Request> {
     }
   }
   const method = req.method ?? "GET";
-  const body =
-    method === "GET" || method === "HEAD" ? undefined : await readBody(req);
+  const body = method === "GET" || method === "HEAD" ? undefined : await readBody(req);
   return new Request(url, { method, headers, body });
 }
 
@@ -35,7 +34,11 @@ export async function sendFetchResponse(res: ServerResponse, response: Response)
   response.headers.forEach((value, key) => {
     if (key.toLowerCase() === "set-cookie") {
       const current = res.getHeader("set-cookie");
-      const next = current ? (Array.isArray(current) ? [...current, value] : [String(current), value]) : [value];
+      const next = current
+        ? Array.isArray(current)
+          ? [...current, value]
+          : [String(current), value]
+        : [value];
       res.setHeader("set-cookie", next);
       return;
     }

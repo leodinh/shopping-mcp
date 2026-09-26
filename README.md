@@ -38,15 +38,15 @@ Create an empty `shopping-mcp` database and set `DATABASE_URL` in `.env`. Includ
 
 ESLint checks code quality; Prettier handles formatting. `eslint-config-prettier` disables conflicting stylistic lint rules. Generated output, environment files, and generated agent instructions are excluded from formatting.
 
-| Command                     | Purpose                                                        |
-| --------------------------- | -------------------------------------------------------------- |
-| `pnpm dev`                 | Web :3000, API :3001, and the sync worker                      |
-| `pnpm run db:migrate`      | Apply outstanding SQL migrations transactionally               |
-| `pnpm run db:setup`        | Same as `db:migrate`                                           |
-| `pnpm test`                | Contract, HTTP, and worker tests; no database                  |
-| `pnpm run test:integration`| Real PostgreSQL lifecycle tests; migrate first                 |
-| `pnpm typecheck`           | TypeScript validation                                          |
-| `pnpm build`               | Production builds for the workspace apps                       |
+| Command                     | Purpose                                                  |
+| --------------------------- | -------------------------------------------------------- |
+| `pnpm dev`                  | Web :3000, API :3001, and the sync worker                |
+| `pnpm run db:migrate`       | Apply outstanding SQL migrations transactionally         |
+| `pnpm run db:setup`         | Same as `db:migrate`                                     |
+| `pnpm test`                 | Workspace tests and architecture boundaries; no database |
+| `pnpm run test:integration` | Real PostgreSQL lifecycle tests; migrate first           |
+| `pnpm typecheck`            | TypeScript validation                                    |
+| `pnpm build`                | Typecheck every workspace, then build the Next.js app    |
 
 Integration tests create uniquely named test merchants and remove only their own records. Never run local tooling against a production database. Repeating sync does not duplicate products.
 
@@ -60,12 +60,12 @@ curl 'http://127.0.0.1:3001/api/merchants'
 
 The MCP endpoint is `http://127.0.0.1:3001/api/mcp`. Tools call catalog functions; they do not query SQL directly.
 
-| Tool               | Backend             | Purpose                                                                                                |
-| ------------------ | ------------------- | ------------------------------------------------------------------------------------------------------ |
-| `search_products`  | `searchProducts()`  | Find products using keywords, price, merchant, and availability                                        |
-| `get_product`      | `getProductById()`  | Retrieve one product by its internal ID                                                                |
-| `compare_products` | `compareProducts()` | Retrieve consistent details for 2–5 products so an assistant can explain differences                   |
-| `get_checkout`     | `getCheckout()`     | Look up a merchant checkout URL; currently returns `supported: false` |
+| Tool               | Backend             | Purpose                                                                              |
+| ------------------ | ------------------- | ------------------------------------------------------------------------------------ |
+| `search_products`  | `searchProducts()`  | Find products using keywords, price, merchant, and availability                      |
+| `get_product`      | `getProductById()`  | Retrieve one product by its internal ID                                              |
+| `compare_products` | `compareProducts()` | Retrieve consistent details for 2–5 products so an assistant can explain differences |
+| `get_checkout`     | `getCheckout()`     | Look up a merchant checkout URL; currently returns `supported: false`                |
 
 `GET /api/products` accepts `q` (up to 200 characters), optional `merchantId` (UUID), `currency` (uppercase, default USD), `maxPrice` (major units, non-negative, up to 2 decimals), `inStock` (`true`/`false`), `limit` (1–100, default 24), and `offset` (0–100000). Returns `{ products, total, limit, offset }`. Each product includes its merchant, stable internal ID, external ID, name, description, `priceMinor`, currency, images, inventory, product URL, and update time. Invalid filters return 400; database unavailability returns 503 without database details. Parameters use prepared SQL, not string interpolation.
 
@@ -74,24 +74,24 @@ The API supports currency filtering, not currency conversion. This milestone ass
 ## Architecture
 
 ```text
-apps/web (Next :3000) ──credentialed fetch──> apps/api (Nest :3001) ──> packages/application ──> PostgreSQL
+apps/web (Next :3000) ──credentialed fetch──> apps/api (Nest :3001) ──> packages/commerce ──> PostgreSQL
                                                                               ↑
 apps/worker (no HTTP) ── every 10s drainSyncRuns ── sync_runs outbox ─────────┘
 ```
 
-This is a **pnpm workspace**, not a distributed commerce backend. Domain code lives in `packages/application` and is shared by the API and worker.
+This is a **pnpm workspace**, not a distributed commerce backend. Business operations live in `packages/commerce` and are shared by the API and worker. Import its feature entry points (`@shopping-mcp/commerce/catalog`, `/merchants`, `/auth`, `/sync`, `/connectors`, and `/connectors/shopify`); there is no root barrel export.
 
 - `packages/database`: Drizzle schema, pool, and migrations.
-- `packages/contracts`: browser-safe Zod types and connector contracts.
-- `packages/application`: catalog, merchants, Shopify OAuth, sync, connectors, MCP tool runners.
-- `packages/config`: typed environment helpers.
-- `apps/api`: Nest HTTP + MCP.
+- `packages/contracts`: browser-safe API request/response schemas and JSON types.
+- `packages/commerce`: catalog, merchants, sessions, Shopify operations, sync, and connectors.
+- `packages/config`: server-only environment helpers.
+- `apps/api`: Nest HTTP controllers, cookies, OAuth responses, and MCP tools.
 - `apps/worker`: outbox drain loop.
 - `apps/web`: seller/docs UI only.
 
 ### Data model
 
-`Merchant 1 — 1 MerchantConnection`, `Merchant 1 — N Product`. Table shapes are declared in `packages/database/src/schema.ts`. `MerchantStatus` and `CatalogProduct` are read models, not table rows.
+`Merchant 1 — 1 MerchantConnection`, `Merchant 1 — N Product`. Table shapes are declared in `packages/database/src/schema.ts`. `SellerStatus` and `CatalogProduct` are read models, not table rows.
 
 Merchant connections store connector type, non-secret configuration, enabled flag, last attempt/success times, and last error. One connection per merchant deliberately keeps ownership simple. Products have a unique `(merchant_id, external_id)` constraint, so different stores may reuse the same SKU without colliding. Money uses integer minor units, not floating-point storage. Inventory is a non-negative integer; unavailable products stay searchable unless `inStock=true`.
 
@@ -127,4 +127,22 @@ Next.js installation reference: https://nextjs.org/docs/app/getting-started/inst
 
 ### Source boundaries
 
-`apps/web` contains Next.js UI. `packages/application` and `packages/database` contain backend implementation. `packages/contracts` contains browser-safe schemas and types. The boundary regression test checks that contracts and web client code cannot import backend packages.
+`apps/web` contains Next.js UI. `packages/commerce` and `packages/database` contain backend implementation. `packages/contracts` contains API schemas and JSON types shared by the API and web client. Timestamps in responses are ISO strings. Connector interfaces and snapshot validation live in commerce. Boundary tests check package subpaths, relative imports, and web aliases; shared packages cannot import apps, and commerce cannot import HTTP/MCP frameworks.
+
+### Tests and workspace commands
+
+Tests live in their owning workspace's `tests/` directory:
+
+- `apps/api/tests`: HTTP, session cookies, MCP input mapping; `integration/` exercises OAuth responses and database transactions.
+- `apps/web/tests`: API URL helpers and seller response validation. Seller UI and its API client live in `src/features/seller/`.
+- `apps/worker/tests`: outbox scheduling.
+- `packages/commerce/tests`: catalog, Shopify helpers, and connector validation; `integration/` exercises catalog and outbox lifecycles against PostgreSQL.
+- `packages/contracts/tests`: public request/response validation.
+- `packages/config/tests`: environment helpers.
+- Root `tests/`: repository architecture boundaries only.
+
+Run one workspace with `pnpm --filter @shopping-mcp/api test` or `pnpm --filter @shopping-mcp/commerce test`. Root `pnpm test` runs all database-free suites. `pnpm typecheck` and `pnpm lint` cover all workspaces and their tests.
+
+For integration tests, point `DATABASE_URL` at a disposable PostgreSQL database, run `pnpm db:migrate`, then `pnpm test:integration`. Workspace integration scripts load the root `.env`; an explicitly set `DATABASE_URL` takes precedence. Shopify tests stub the external token exchange. Catalog and outbox tests use fake connectors, so no Shopify credentials or network calls are needed.
+
+The API and worker run TypeScript through `tsx`; they do not emit separate build artifacts. `pnpm build` checks all workspaces and builds the web app.

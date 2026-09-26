@@ -39,7 +39,7 @@ export const merchantConnections = pgTable(
       .notNull()
       .unique()
       .references(() => merchants.id, { onDelete: "cascade" }),
-    connectorType: text("connector_type").notNull(),
+    connectorType: text("connector_type").$type<"shopify">().notNull(),
     config: jsonb("config").$type<ConnectionConfig>().notNull(),
     enabled: boolean("enabled").notNull().default(true),
     lastSyncedAt: timestamptz("last_synced_at"),
@@ -86,9 +86,15 @@ export const products = pgTable(
     check("products_currency_check", sql`${table.currency} ~ '^[A-Z]{3}$'`),
     check("products_images_check", sql`jsonb_typeof(${table.images}) = 'array'`),
     check("products_inventory_check", sql`${table.inventory} >= 0`),
-    index("products_search_idx").using("gin", table.searchDocument).where(sql`${table.active}`),
-    index("products_merchant_idx").on(table.merchantId).where(sql`${table.active}`),
-    index("products_price_idx").on(table.currency, table.priceMinor).where(sql`${table.active}`),
+    index("products_search_idx")
+      .using("gin", table.searchDocument)
+      .where(sql`${table.active}`),
+    index("products_merchant_idx")
+      .on(table.merchantId)
+      .where(sql`${table.active}`),
+    index("products_price_idx")
+      .on(table.currency, table.priceMinor)
+      .where(sql`${table.active}`),
   ],
 );
 
@@ -129,7 +135,10 @@ export const syncRuns = pgTable(
     createdAt: timestamptz("created_at").notNull().defaultNow(),
   },
   (table) => [
-    check("sync_runs_status_check", sql`${table.status} IN ('pending', 'running', 'succeeded', 'failed')`),
+    check(
+      "sync_runs_status_check",
+      sql`${table.status} IN ('pending', 'running', 'succeeded', 'failed')`,
+    ),
   ],
 );
 

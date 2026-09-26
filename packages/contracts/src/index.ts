@@ -1,15 +1,14 @@
+export { searchSchema, type CatalogProduct } from "./catalog";
 export {
-  searchSchema,
-  minorUnits,
-  toCatalogProduct,
-  type CatalogProduct,
-  type CatalogProductRow,
-} from "./catalog";
-export { type MerchantStatus } from "./merchants";
+  sellerStatusSchema,
+  sellerResponseSchema,
+  type SellerStatus,
+  type SellerResponse,
+} from "./seller";
+export {
+  shopifyConnectRequestSchema,
+  shopifyConnectResponseSchema,
+  type ShopifyConnectRequest,
+  type ShopifyConnectResponse,
+} from "./shopify";
 export { type JsonObject } from "./common";
-export {
-  normalizedProductSchema,
-  validateSnapshot,
-  type NormalizedProduct,
-  type MerchantConnector,
-} from "./connectors";

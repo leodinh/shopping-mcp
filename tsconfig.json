@@ -6,6 +6,6 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true
   },
-  "include": ["tests/**/*.ts", "packages/**/*.ts", "apps/api/**/*.ts", "apps/worker/**/*.ts"],
+  "include": ["tests/**/*.ts"],
   "exclude": ["node_modules"]
 }

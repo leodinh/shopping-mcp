@@ -3,22 +3,25 @@ import assert from "node:assert/strict";
 import { createHmac, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { Pool } from "pg";
-import { databaseFrom } from "@/server/db/client";
-import { createSession } from "@/server/auth/session";
-import { handleShopifyConnect } from "@/server/shopify/connect";
-import { handleShopifyCallback } from "@/server/shopify/callback";
-import { decryptCredentials } from "@/server/shopify/credentials";
-import { getDashboardMerchant } from "@/server/merchants/repository";
+import {
+  createSession,
+  decryptCredentials,
+  getDashboardMerchant,
+  handleShopifyCallback,
+  handleShopifyConnect,
+} from "@shopping-mcp/application";
+import { databaseFrom } from "@shopping-mcp/database";
 
 process.env.SESSION_SECRET = "test-session-secret-32-characters-min";
 process.env.SHOPIFY_API_KEY = "test-key";
 process.env.SHOPIFY_API_SECRET = "test-secret";
 process.env.SHOPIFY_SCOPES = "read_products";
-process.env.SHOPIFY_REDIRECT_URI = "http://127.0.0.1:3000/api/connections/shopify/callback";
+process.env.SHOPIFY_REDIRECT_URI = "http://127.0.0.1:3001/api/connections/shopify/callback";
+process.env.WEB_ORIGIN = "http://127.0.0.1:3000";
 
 async function applyMigrations(pool: Pool) {
   const sql = await readFile(
-    new URL("../../db/migrations/0000_nifty_tyger_tiger.sql", import.meta.url),
+    new URL("../../packages/database/migrations/0000_nifty_tyger_tiger.sql", import.meta.url),
     "utf8",
   );
   for (const statement of sql.split("--> statement-breakpoint")) {
@@ -72,8 +75,7 @@ test("Shopify connect stores a one-time oauth attempt from a dashboard session",
       db,
     );
     assert.equal(created.status, 200);
-    const payload = await created.json();
-    const url = new URL(payload.authorizationUrl);
+    const url = await connectAuthorizeUrl(created);
     assert.equal(
       url.origin + url.pathname,
       "https://example-shop.myshopify.com/admin/oauth/authorize",
@@ -103,6 +105,19 @@ test("Shopify connect stores a one-time oauth attempt from a dashboard session",
     await admin.end();
   }
 });
+
+async function connectAuthorizeUrl(response: Response) {
+  const payload: unknown = await response.json();
+  if (
+    !payload ||
+    typeof payload !== "object" ||
+    !("authorizationUrl" in payload) ||
+    typeof payload.authorizationUrl !== "string"
+  ) {
+    throw new Error("expected authorizationUrl");
+  }
+  return new URL(payload.authorizationUrl);
+}
 
 function signedCallbackQuery(params: Record<string, string>) {
   const hmac = createHmac("sha256", "test-secret")
@@ -146,7 +161,7 @@ test("Shopify callback verifies HMAC, consumes state, stores encrypted credentia
       }),
       db,
     );
-    const state = new URL((await started.json()).authorizationUrl).searchParams.get("state")!;
+    const state = (await connectAuthorizeUrl(started)).searchParams.get("state")!;
     const binding = started.headers
       .getSetCookie()
       .find((value) => value.startsWith("oauth_binding="))!
@@ -171,7 +186,7 @@ test("Shopify callback verifies HMAC, consumes state, stores encrypted credentia
     context.mock.method(
       globalThis,
       "fetch",
-      async (input: RequestInfo | URL, init?: RequestInit) => {
+      async (input: string | URL | Request, init?: RequestInit) => {
         assert.equal(String(input), "https://example-shop.myshopify.com/admin/oauth/access_token");
         assert.equal(init?.method, "POST");
         assert.match(String(init?.body), /code=auth-code/);
@@ -194,7 +209,7 @@ test("Shopify callback verifies HMAC, consumes state, stores encrypted credentia
       db,
     );
     assert.equal(created.status, 200);
-    assert.match(await created.text(), /\/seller/);
+    assert.match(await created.text(), /http:\/\/127\.0\.0\.1:3000\/seller/);
     assert.match(
       created.headers.getSetCookie().find((value) => value.startsWith("session=")) ?? "",
       /^session=[^;]+; HttpOnly; Path=\/; Max-Age=2592000; SameSite=Lax$/,
@@ -241,9 +256,7 @@ test("Shopify callback verifies HMAC, consumes state, stores encrypted credentia
       }),
       db,
     );
-    const otherState = new URL((await otherStart.json()).authorizationUrl).searchParams.get(
-      "state",
-    )!;
+    const otherState = (await connectAuthorizeUrl(otherStart)).searchParams.get("state")!;
     const otherBinding = otherStart.headers
       .getSetCookie()
       .find((value) => value.startsWith("oauth_binding="))!
@@ -298,7 +311,7 @@ test("Connect Shopify from the browser creates a dashboard session after callbac
       db,
     );
     assert.equal(started.status, 200);
-    const state = new URL((await started.json()).authorizationUrl).searchParams.get("state")!;
+    const state = (await connectAuthorizeUrl(started)).searchParams.get("state")!;
     const binding = started.headers
       .getSetCookie()
       .find((value) => value.startsWith("oauth_binding="))!
@@ -321,7 +334,7 @@ test("Connect Shopify from the browser creates a dashboard session after callbac
       db,
     );
     assert.equal(callback.status, 200);
-    assert.match(await callback.text(), /\/seller/);
+    assert.match(await callback.text(), /http:\/\/127\.0\.0\.1:3000\/seller/);
     const sessionCookie = callback.headers
       .getSetCookie()
       .find((value) => value.startsWith("session="));
@@ -362,7 +375,7 @@ test("Shopify callback rolls back all writes when token exchange fails", async (
       }),
       db,
     );
-    const state = new URL((await started.json()).authorizationUrl).searchParams.get("state")!;
+    const state = (await connectAuthorizeUrl(started)).searchParams.get("state")!;
     const binding = started.headers
       .getSetCookie()
       .find((value) => value.startsWith("oauth_binding="))!

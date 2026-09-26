@@ -8,23 +8,20 @@ After Shopify OAuth, a session cookie identifies the connected merchant for the 
 
 ## Local setup
 
-Prerequisites: Node.js 22+, npm, and PostgreSQL 17+.
+Prerequisites: Node.js 22+, pnpm, and PostgreSQL 17+.
 
 From this directory:
 
 ```sh
-npm ci
+pnpm install
 cp .env.example .env
-npm run dev
+pnpm run db:migrate
+pnpm dev
 ```
 
-Leave that terminal running. It starts Next.js at http://127.0.0.1:3000. In a second terminal, from this same directory:
+That starts three processes: Next.js UI at http://127.0.0.1:3000, Nest API at http://127.0.0.1:3001, and a worker that drains catalog sync every 10s. You can also start them separately with `pnpm dev:web`, `pnpm dev:api`, and `pnpm dev:worker`.
 
-```sh
-npm run db:migrate
-```
-
-Existing databases built by the old SQL runner must be recreated before `npm run db:migrate`, because the migration ledger changed.
+Existing databases built by the old SQL runner must be recreated before `pnpm run db:migrate`, because the migration ledger changed.
 
 Open http://127.0.0.1:3000/seller and connect a Shopify store. The seller page shows that store's connection state, product count, and sync status.
 
@@ -34,35 +31,34 @@ Create an empty `shopping-mcp` database and set `DATABASE_URL` in `.env`. Includ
 
 ### Code quality
 
-- `npm run lint`: check Next.js, React, and TypeScript rules with ESLint.
-- `npm run lint:fix`: apply available ESLint fixes.
-- `npm run format`: format supported files with Prettier.
-- `npm run format:check`: check formatting without changing files.
+- `pnpm lint`: check Next.js, React, and TypeScript rules with ESLint.
+- `pnpm lint:fix`: apply available ESLint fixes.
+- `pnpm format`: format supported files with Prettier.
+- `pnpm format:check`: check formatting without changing files.
 
 ESLint checks code quality; Prettier handles formatting. `eslint-config-prettier` disables conflicting stylistic lint rules. Generated output, environment files, and generated agent instructions are excluded from formatting.
 
 | Command                     | Purpose                                                        |
 | --------------------------- | -------------------------------------------------------------- |
-| `npm run dev`              | Next.js at http://127.0.0.1:3000                               |
-| `npm run db:migrate`       | Apply outstanding SQL migrations transactionally               |
-| `npm run db:setup`         | Same as `db:migrate`                                           |
-| `npm test`                 | Contract and input validation tests; no database               |
-| `npm run test:integration` | Real PostgreSQL lifecycle tests; migrate first                 |
-| `npm run typecheck`        | TypeScript validation                                          |
-| `npm run build`            | Production Next.js build                                       |
-| `npm start`                | Serve production build                                         |
+| `pnpm dev`                 | Web :3000, API :3001, and the sync worker                      |
+| `pnpm run db:migrate`      | Apply outstanding SQL migrations transactionally               |
+| `pnpm run db:setup`        | Same as `db:migrate`                                           |
+| `pnpm test`                | Contract, HTTP, and worker tests; no database                  |
+| `pnpm run test:integration`| Real PostgreSQL lifecycle tests; migrate first                 |
+| `pnpm typecheck`           | TypeScript validation                                          |
+| `pnpm build`               | Production builds for the workspace apps                       |
 
 Integration tests create uniquely named test merchants and remove only their own records. Never run local tooling against a production database. Repeating sync does not duplicate products.
 
 ## HTTP API
 
 ```sh
-curl 'http://127.0.0.1:3000/api/products?q=black+backpack&maxPrice=100'
-curl 'http://127.0.0.1:3000/api/products?inStock=true&limit=5&offset=0'
-curl 'http://127.0.0.1:3000/api/merchants'
+curl 'http://127.0.0.1:3001/api/products?q=black+backpack&maxPrice=100'
+curl 'http://127.0.0.1:3001/api/products?inStock=true&limit=5&offset=0'
+curl 'http://127.0.0.1:3001/api/merchants'
 ```
 
-The MCP endpoint is `http://127.0.0.1:3000/api/mcp`. Tools call catalog functions; they do not query SQL directly.
+The MCP endpoint is `http://127.0.0.1:3001/api/mcp`. Tools call catalog functions; they do not query SQL directly.
 
 | Tool               | Backend             | Purpose                                                                                                |
 | ------------------ | ------------------- | ------------------------------------------------------------------------------------------------------ |
@@ -78,36 +74,31 @@ The API supports currency filtering, not currency conversion. This milestone ass
 ## Architecture
 
 ```text
-Next.js page / read-only API / MCP ──> catalog + merchants ──> PostgreSQL
-                                                              ↑
-cron /api/cron/sync ──> sync_runs outbox ──> sync service ──> connector ──> Shopify
-                                                 └──── normalized snapshot ────┘
+apps/web (Next :3000) ──credentialed fetch──> apps/api (Nest :3001) ──> packages/application ──> PostgreSQL
+                                                                              ↑
+apps/worker (no HTTP) ── every 10s drainSyncRuns ── sync_runs outbox ─────────┘
 ```
 
-This is a **modular monolith**, not a distributed commerce backend. Application modules live in one Next.js project and share one database.
+This is a **pnpm workspace**, not a distributed commerce backend. Domain code lives in `packages/application` and is shared by the API and worker.
 
-- `src/server/catalog`: validated search, PostgreSQL full-text search and pagination.
-- `src/server/merchants`: merchant services and the `MerchantStatus` read model.
-- `src/server/connectors`: normalized product contract, validation, and registry.
-- `src/server/sync`: outbox enqueue/drain and snapshot reconciliation; no framework dependency.
-- `src/server/db/schema.ts`: Drizzle table definitions (source of truth for columns and types).
-- `src/server/db/client.ts`: pooled `pg` connection wrapped with Drizzle, shared across development reloads.
-- `src/server/mcp`: MCP handler and tool adapters. Each tool maps agent input onto a catalog function.
-- `src/app`: seller status page, private `_components` and `_actions` folders, and read-only HTTP APIs.
-- `src/shared`: browser-safe catalog validation and types. These files must not import backend code.
-- `scripts`: migration entry points.
-- `db/migrations`: drizzle-kit SQL and snapshots.
+- `packages/database`: Drizzle schema, pool, and migrations.
+- `packages/contracts`: browser-safe Zod types and connector contracts.
+- `packages/application`: catalog, merchants, Shopify OAuth, sync, connectors, MCP tool runners.
+- `packages/config`: typed environment helpers.
+- `apps/api`: Nest HTTP + MCP.
+- `apps/worker`: outbox drain loop.
+- `apps/web`: seller/docs UI only.
 
 ### Data model
 
-`Merchant 1 — 1 MerchantConnection`, `Merchant 1 — N Product`. Table shapes are declared in `src/server/db/schema.ts`. `MerchantStatus` and `CatalogProduct` are read models, not table rows.
+`Merchant 1 — 1 MerchantConnection`, `Merchant 1 — N Product`. Table shapes are declared in `packages/database/src/schema.ts`. `MerchantStatus` and `CatalogProduct` are read models, not table rows.
 
 Merchant connections store connector type, non-secret configuration, enabled flag, last attempt/success times, and last error. One connection per merchant deliberately keeps ownership simple. Products have a unique `(merchant_id, external_id)` constraint, so different stores may reuse the same SKU without colliding. Money uses integer minor units, not floating-point storage. Inventory is a non-negative integer; unavailable products stay searchable unless `inStock=true`.
 
 ### Sync semantics
 
 1. Enqueue a `sync_runs` row (`pending`) on OAuth connect or seller retry. Dedup if pending/running already exists.
-2. Cron hits `POST /api/cron/sync` every 10s with `Authorization: Bearer $CRON_SECRET`, claims one run (`running`, or stale `running` older than 10 minutes), then:
+2. The worker claims one run every 10s (`running`, or stale `running` older than 10 minutes), then:
    1. Acquire a PostgreSQL advisory lock for the connection; concurrent sync attempts fail fast.
    2. Fetch the entire source snapshot, with a 10-second HTTP timeout.
    3. Validate the entire normalized catalog, including unique external IDs, quantities, money, and HTTP(S) URLs, before modifying products.
@@ -127,13 +118,13 @@ Do not expose this development app to the public internet without auth. Connecto
 
 ## Troubleshooting
 
-- **Catalog setup screen / 503:** check `.env`, database health, and `npm run db:migrate`.
+- **Catalog setup screen / 503:** check `.env`, database health, and `pnpm run db:migrate`.
 - **Sync fetch failed:** check the Shopify connection and scopes. The previous catalog remains intact.
-- **No products:** connect a Shopify store, then wait for cron (`POST /api/cron/sync` every 10s) or use Retry sync on `/seller`.
+- **No products:** connect a Shopify store, then wait for the worker or use Retry sync on `/seller`.
 - **Port conflict:** change `DATABASE_URL` to match your PostgreSQL port.
 
 Next.js installation reference: https://nextjs.org/docs/app/getting-started/installation
 
 ### Source boundaries
 
-`src/app` contains Next.js entry points and UI. `src/server` contains database access, commerce services, and connectors. `src/shared` contains browser-safe schemas and types. Folder names alone do not enforce runtime isolation. The boundary regression test checks local client/shared imports.
+`apps/web` contains Next.js UI. `packages/application` and `packages/database` contain backend implementation. `packages/contracts` contains browser-safe schemas and types. The boundary regression test checks that contracts and web client code cannot import backend packages.

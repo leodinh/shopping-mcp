@@ -1,0 +1,21 @@
+{
+  "name": "@shopping-mcp/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/processors/outbox.processor.ts"
+  },
+  "scripts": {
+    "dev": "node --import tsx --env-file-if-exists=../../.env src/main.ts",
+    "start": "node --import tsx --env-file-if-exists=../../.env src/main.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.6",
+    "@nestjs/core": "^11.1.6",
+    "@shopping-mcp/application": "workspace:*",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  }
+}

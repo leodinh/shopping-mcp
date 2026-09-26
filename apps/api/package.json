@@ -1,0 +1,27 @@
+{
+  "name": "@shopping-mcp/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/create-api.ts"
+  },
+  "scripts": {
+    "dev": "node --import tsx --env-file-if-exists=../../.env src/main.ts",
+    "start": "node --import tsx --env-file-if-exists=../../.env src/main.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.6",
+    "@nestjs/core": "^11.1.6",
+    "@nestjs/platform-express": "^11.1.6",
+    "@shopping-mcp/application": "workspace:*",
+    "@shopping-mcp/config": "workspace:*",
+    "@shopping-mcp/contracts": "workspace:*",
+    "@modelcontextprotocol/server": "^2.0.0",
+    "mcp-handler": "^2.1.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "zod": "4.5.4"
+  }
+}

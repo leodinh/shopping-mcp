@@ -1,0 +1,21 @@
+{
+  "name": "@shopping-mcp/application",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.0.0",
+    "@shopping-mcp/config": "workspace:*",
+    "@shopping-mcp/contracts": "workspace:*",
+    "@shopping-mcp/database": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "pg": "8.23.0",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.0.0"
+  }
+}

@@ -2,11 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { ZodError } from "zod";
-import { validateSnapshot } from "@/server/connectors/contract";
-import { minorUnits, searchSchema, toCatalogProduct } from "@/shared/catalog-schema";
-import { compareProducts, getProductById } from "@/server/catalog/repository";
-import { searchProductsInput, toCatalogSearch } from "@/server/mcp/search-products";
-import { compareProductsInput } from "@/server/mcp/compare-products";
+import { compareProductsInput, compareProducts, getProductById, searchProductsInput, toCatalogSearch } from "@shopping-mcp/application";
+import { minorUnits, searchSchema, toCatalogProduct, validateSnapshot } from "@shopping-mcp/contracts";
 const product = { externalId: "one", name: "Backpack", description: "Black", priceMinor: 8900,
   currency: "USD", inventory: 1, images: [], productUrl: "https://store.example/one" };
 

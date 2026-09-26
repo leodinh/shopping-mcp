@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getConnector } from "@/server/connectors/registry";
-import { mapShopifyProduct, shopifyConnector } from "@/server/connectors/shopify";
+import { getConnector, mapShopifyProduct, shopifyConnector } from "@shopping-mcp/application";
 
 test("mapShopifyProduct uses first variant price and inventory", () => {
   assert.deepEqual(

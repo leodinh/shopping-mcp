@@ -5,19 +5,24 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
-const root = fileURLToPath(new URL("../src/", import.meta.url));
+const repo = fileURLToPath(new URL("..", import.meta.url));
+const forbiddenPackages = ["@shopping-mcp/application", "@shopping-mcp/database", "@shopping-mcp/api", "@shopping-mcp/worker"];
+const forbiddenModules = ["pg", "next/headers", "next/cache"];
 
 async function sourceFiles(directory: string): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });
-  const files = await Promise.all(entries.map(async (entry) => {
-    const path = join(directory, entry.name);
-    return entry.isDirectory() ? sourceFiles(path) : /\.tsx?$/.test(path) ? [path] : [];
-  }));
+  const files = await Promise.all(
+    entries.map(async (entry) => {
+      const path = join(directory, entry.name);
+      return entry.isDirectory() ? sourceFiles(path) : /\.tsx?$/.test(path) ? [path] : [];
+    }),
+  );
   return files.flat();
 }
 
 async function resolveImport(importer: string, specifier: string) {
-  const base = specifier.startsWith("@/") ? resolve(root, specifier.slice(2)) : resolve(dirname(importer), specifier);
+  if (!specifier.startsWith(".")) return null;
+  const base = resolve(dirname(importer), specifier);
   for (const suffix of [".ts", ".tsx", "/index.ts", "/index.tsx"]) {
     try {
       await access(base + suffix);
@@ -27,28 +32,43 @@ async function resolveImport(importer: string, specifier: string) {
   throw new Error(`Unresolved import ${specifier} in ${importer}`);
 }
 
-async function checkGraph(path: string, shared: boolean, visited = new Set<string>()) {
+async function checkGraph(path: string, root: string, allow: (location: string, specifier: string) => void, visited = new Set<string>()) {
   if (visited.has(path)) return;
   visited.add(path);
   const source = await readFile(path, "utf8");
-  if (!shared && /^['"]use server['"];/.test(source.trimStart())) return;
   const location = relative(root, path);
-  assert.ok(!location.startsWith("server/"), `Browser code imports ${location}`);
-  if (shared) assert.ok(location.startsWith("shared/"), `Shared code imports ${location}`);
   for (const entry of ts.preProcessFile(source).importedFiles) {
     const specifier = entry.fileName;
-    if (specifier.startsWith(".") || specifier.startsWith("@/")) {
-      await checkGraph(await resolveImport(path, specifier), shared, visited);
-    } else {
-      assert.ok(!specifier.startsWith("node:") && !["pg", "next/headers", "next/cache"].includes(specifier), `Browser code imports ${specifier}`);
-    }
+    allow(location, specifier);
+    const next = await resolveImport(path, specifier);
+    if (next) await checkGraph(next, root, allow, visited);
   }
 }
 
-test("shared files and client components cannot import backend implementation", async () => {
+test("contracts cannot import application, database, or server-only modules", async () => {
+  const root = join(repo, "packages/contracts/src");
   for (const path of await sourceFiles(root)) {
-    const shared = relative(root, path).startsWith("shared/");
-    const client = /^['"]use client['"];/.test((await readFile(path, "utf8")).trimStart());
-    if (shared || client) await checkGraph(path, shared);
+    await checkGraph(path, root, (_location, specifier) => {
+      assert.ok(!forbiddenPackages.includes(specifier), `contracts import ${specifier}`);
+      assert.ok(!specifier.startsWith("node:") && !forbiddenModules.includes(specifier), `contracts import ${specifier}`);
+    });
+  }
+});
+
+test("web client components cannot import backend packages", async () => {
+  const root = join(repo, "apps/web/src");
+  try {
+    await access(root);
+  } catch {
+    return;
+  }
+  for (const path of await sourceFiles(root)) {
+    const source = await readFile(path, "utf8");
+    const client = /^['"]use client['"];/.test(source.trimStart());
+    if (!client) continue;
+    await checkGraph(path, root, (_location, specifier) => {
+      assert.ok(!forbiddenPackages.includes(specifier), `client import ${specifier}`);
+      assert.ok(!specifier.startsWith("node:") && !forbiddenModules.includes(specifier), `client import ${specifier}`);
+    });
   }
 });

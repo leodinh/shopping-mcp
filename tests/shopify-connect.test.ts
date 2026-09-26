@@ -2,15 +2,20 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createHmac } from "node:crypto";
-import { normalizeShopDomain, shopifyAuthorizeUrl } from "@/server/shopify/connect";
-import { verifyShopifyHmac } from "@/server/shopify/hmac";
-import { clearSessionCookie, readSessionCookie, signSessionCookie } from "@/server/auth/session";
+import {
+  clearSessionCookie,
+  normalizeShopDomain,
+  readSessionCookie,
+  shopifyAuthorizeUrl,
+  signSessionCookie,
+  verifyShopifyHmac,
+} from "@shopping-mcp/application";
 
 process.env.SESSION_SECRET = "test-session-secret-32-characters-min";
 process.env.SHOPIFY_API_KEY = "test-key";
 process.env.SHOPIFY_API_SECRET = "test-secret";
 process.env.SHOPIFY_SCOPES = "read_products";
-process.env.SHOPIFY_REDIRECT_URI = "http://127.0.0.1:3000/api/connections/shopify/callback";
+process.env.SHOPIFY_REDIRECT_URI = "http://127.0.0.1:3001/api/connections/shopify/callback";
 
 test("normalizes *.myshopify.com hostnames and rejects everything else", () => {
   assert.equal(normalizeShopDomain("Example-Shop.myshopify.com"), "example-shop.myshopify.com");
@@ -49,7 +54,7 @@ test("session cookie round-trips and rejects missing, tampered, or expired value
 test("builds the Shopify admin OAuth authorize URL", () => {
   assert.equal(
     shopifyAuthorizeUrl("example-shop.myshopify.com", "abc123"),
-    "https://example-shop.myshopify.com/admin/oauth/authorize?client_id=test-key&scope=read_products&redirect_uri=http%3A%2F%2F127.0.0.1%3A3000%2Fapi%2Fconnections%2Fshopify%2Fcallback&state=abc123",
+    "https://example-shop.myshopify.com/admin/oauth/authorize?client_id=test-key&scope=read_products&redirect_uri=http%3A%2F%2F127.0.0.1%3A3001%2Fapi%2Fconnections%2Fshopify%2Fcallback&state=abc123",
   );
 });
 

@@ -3,11 +3,15 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { eq, inArray } from "drizzle-orm";
-import { databaseFrom } from "@/server/db/client";
-import { merchantConnections, merchants } from "@/server/db/schema";
-import { syncConnection } from "@/server/sync/service";
-import { searchProducts, getProductById, compareProducts, getCheckout } from "@/server/catalog/repository";
-import type { MerchantConnector, NormalizedProduct } from "@/server/connectors/contract";
+import {
+  compareProducts,
+  getCheckout,
+  getProductById,
+  searchProducts,
+  syncConnection,
+} from "@shopping-mcp/application";
+import type { MerchantConnector, NormalizedProduct } from "@shopping-mcp/contracts";
+import { databaseFrom, merchantConnections, merchants } from "@shopping-mcp/database";
 
 test("PostgreSQL sync and search lifecycle", async () => {
   assert.ok(process.env.DATABASE_URL, "DATABASE_URL is required; run db:migrate first");

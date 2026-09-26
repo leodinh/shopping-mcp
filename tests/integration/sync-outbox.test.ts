@@ -4,14 +4,13 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { Pool } from "pg";
 import { eq } from "drizzle-orm";
-import { databaseFrom } from "@/server/db/client";
-import { merchantConnections, merchants, syncRuns } from "@/server/db/schema";
-import type { MerchantConnector, NormalizedProduct } from "@/server/connectors/contract";
-import { drainSyncRuns, enqueueSync } from "@/server/sync/outbox";
+import { drainSyncRuns, enqueueSync } from "@shopping-mcp/application";
+import type { MerchantConnector, NormalizedProduct } from "@shopping-mcp/contracts";
+import { databaseFrom, merchantConnections, merchants, syncRuns } from "@shopping-mcp/database";
 
 async function applyMigrations(pool: Pool) {
   const sql = await readFile(
-    new URL("../../db/migrations/0000_nifty_tyger_tiger.sql", import.meta.url),
+    new URL("../../packages/database/migrations/0000_nifty_tyger_tiger.sql", import.meta.url),
     "utf8",
   );
   for (const statement of sql.split("--> statement-breakpoint")) {

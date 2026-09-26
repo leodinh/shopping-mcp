@@ -1,0 +1,39 @@
+{
+  "name": "@shopping-mcp/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --import tsx --env-file-if-exists=../../.env src/main.ts",
+    "start": "node --import tsx --env-file-if-exists=../../.env src/main.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint src tests --max-warnings=0",
+    "lint:fix": "eslint src tests --max-warnings=0 --fix",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "test:integration": "node --import tsx --env-file-if-exists=../../.env --test tests/integration/*.test.ts"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.6",
+    "@nestjs/core": "^11.1.6",
+    "@nestjs/platform-express": "^11.1.6",
+    "@shopping-mcp/commerce": "workspace:*",
+    "@shopping-mcp/config": "workspace:*",
+    "@shopping-mcp/contracts": "workspace:*",
+    "@modelcontextprotocol/server": "^2.0.0",
+    "mcp-handler": "^2.1.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "zod": "4.5.4",
+    "@shopping-mcp/database": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.0.0",
+    "tsx": "^4.0.0",
+    "@types/express": "^5.0.0",
+    "supertest": "^7.1.4",
+    "@types/supertest": "^6.0.3",
+    "pg": "8.23.0",
+    "@types/pg": "^8.0.0"
+  }
+}

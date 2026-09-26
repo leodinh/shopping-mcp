@@ -24,7 +24,7 @@ People-facing name: **Shopping with Agent**. Protocol / config / repo name: **Sh
 
 ## Operating Context
 
-Next.js app + PostgreSQL + Shopify OAuth, developed on localhost (`npm run dev` → `http://127.0.0.1:3000`). Shoppers add the MCP server to an assistant (downloadable `shopping-mcp.json` pointing at `/api/mcp`). Store owners connect at `/seller`. Contact is GitHub issues.
+Next.js UI on `:3000` + Nest API/MCP on `:3001` + Nest worker + PostgreSQL + Shopify OAuth, developed on localhost (`pnpm dev`). Shoppers add the MCP server to an assistant (downloadable `shopping-mcp.json` pointing at `http://127.0.0.1:3001/api/mcp`). Store owners connect at `/seller`. Contact is GitHub issues.
 
 Heading toward a public product. The current privacy copy (“local app / should not be used with real customer data”) is stale and must not be treated as product policy. Public launch still requires real auth and data isolation (not present today).
 
@@ -33,9 +33,9 @@ Heading toward a public product. The current privacy copy (“local app / should
 Confirmed:
 
 - MCP tools: `search_products`, `get_product`, `compare_products`, `get_checkout` (currently returns `supported: false`).
-- Shopify is the only connector. Sync is manual, full-snapshot, capped at 10,000 products per merchant.
+- Shopify is the only connector. Catalog sync is queued in `sync_runs` and drained by the Nest worker every 10s, capped at 10,000 products per merchant.
 - Seller session is a cookie after OAuth. Shopify credentials are stored encrypted.
-- HTTP catalog APIs exist (`/api/products`, `/api/merchants`) for the same catalog.
+- HTTP catalog APIs exist on the Nest origin (`/api/products`, `/api/merchants`) for the same catalog.
 - Logo asset: `public/logo.png` (cart-with-agent mark).
 
 Undecided / not yet built:

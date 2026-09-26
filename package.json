@@ -1,50 +1,35 @@
 {
-  "name": "shopping-mcp-commerce-core",
+  "name": "shopping-mcp",
   "version": "0.1.0",
   "private": true,
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "dev": "next dev --hostname 127.0.0.1",
-    "build": "next build",
-    "start": "next start --hostname 127.0.0.1",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint . --max-warnings=0",
-    "lint:fix": "eslint . --fix --max-warnings=0",
+    "dev": "pnpm run --parallel --filter @shopping-mcp/web --filter @shopping-mcp/api --filter @shopping-mcp/worker dev",
+    "dev:web": "pnpm --filter @shopping-mcp/web dev",
+    "dev:api": "pnpm --filter @shopping-mcp/api dev",
+    "dev:worker": "pnpm --filter @shopping-mcp/worker dev",
+    "build": "pnpm typecheck && pnpm --filter @shopping-mcp/web build",
+    "typecheck": "tsc --noEmit -p tsconfig.json && pnpm -r --if-present typecheck",
+    "lint": "eslint tests --max-warnings=0 && pnpm -r --if-present lint",
+    "lint:fix": "eslint tests --fix && pnpm -r --if-present lint:fix",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
-    "db:migrate": "tsx --env-file-if-exists=.env scripts/migrate.ts",
-    "db:setup": "npm run db:migrate",
-    "db:generate": "drizzle-kit generate",
-    "sync": "tsx --env-file-if-exists=.env scripts/sync.ts",
-    "test": "tsx --test tests/*.test.ts",
-    "test:integration": "tsx --env-file-if-exists=.env --test tests/integration/*.test.ts"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/server": "^2.0.0",
-    "@tailwindcss/postcss": "^4.3.3",
-    "drizzle-orm": "^0.45.2",
-    "mcp-handler": "^2.1.1",
-    "next": "16.3.4",
-    "pg": "8.23.0",
-    "postcss": "^8.5.28",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "tailwindcss": "^4.3.3",
-    "zod": "4.5.4"
+    "db:migrate": "pnpm --filter @shopping-mcp/database migrate",
+    "db:setup": "pnpm run db:migrate",
+    "db:generate": "pnpm --filter @shopping-mcp/database generate",
+    "test": "pnpm run test:boundaries && pnpm -r --if-present test",
+    "test:integration": "pnpm -r --if-present test:integration",
+    "test:boundaries": "node --import tsx --test tests/*.test.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "@types/pg": "^8.0.0",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "drizzle-kit": "^0.31.10",
-    "eslint": "^9.39.5",
-    "eslint-config-next": "^16.3.4",
-    "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.9.6",
     "tsx": "^4.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "eslint": "^9.39.5",
+    "typescript-eslint": "^8.70.1",
+    "eslint-config-prettier": "^10.1.8"
   }
 }

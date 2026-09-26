@@ -1,0 +1,35 @@
+{
+  "name": "@shopping-mcp/commerce",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./catalog": "./src/catalog/index.ts",
+    "./auth": "./src/auth/index.ts",
+    "./merchants": "./src/merchants/index.ts",
+    "./sync": "./src/sync/index.ts",
+    "./connectors": "./src/connectors/index.ts",
+    "./connectors/shopify": "./src/connectors/shopify/index.ts"
+  },
+  "dependencies": {
+    "@shopping-mcp/config": "workspace:*",
+    "@shopping-mcp/contracts": "workspace:*",
+    "@shopping-mcp/database": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "pg": "8.23.0",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.0.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.0.0",
+    "tsx": "^4.0.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint src tests --max-warnings=0",
+    "lint:fix": "eslint src tests --max-warnings=0 --fix",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "test:integration": "node --import tsx --env-file-if-exists=../../.env --test tests/integration/*.test.ts"
+  }
+}

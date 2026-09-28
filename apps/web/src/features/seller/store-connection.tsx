@@ -127,20 +127,20 @@ export function StoreConnections() {
       {connected ? (
         <>
           <h1 className="text-headline font-bold text-heading">{connected.name}</h1>
-          <dl className="mt-8 divide-y divide-line border-y border-line">
-            <div className="flex justify-between gap-4 py-4">
+          <dl className="mt-10 flex flex-col gap-5">
+            <div className="flex justify-between gap-4">
               <dt className="text-muted">Connection</dt>
-              <dd className={`font-bold ${connected.enabled ? "text-stock" : "text-sold-out"}`}>
+              <dd className="font-medium text-heading">
                 {connected.enabled ? "Shopify connected" : "Disabled"}
               </dd>
             </div>
-            <div className="flex justify-between gap-4 py-4">
+            <div className="flex justify-between gap-4">
               <dt className="text-muted">Products</dt>
-              <dd className="font-bold text-heading">{connected.productCount}</dd>
+              <dd className="font-medium text-heading">{connected.productCount}</dd>
             </div>
-            <div className="flex justify-between gap-4 py-4">
+            <div className="flex justify-between gap-4">
               <dt className="text-muted">Sync</dt>
-              <dd className={`font-bold ${connected.lastError ? "text-sold-out" : "text-heading"}`}>
+              <dd className="font-medium text-heading">
                 {connected.lastError
                   ? "Sync failed"
                   : connected.lastSyncedAt
@@ -148,7 +148,7 @@ export function StoreConnections() {
                     : "Awaiting sync"}
               </dd>
             </div>
-            <div className="flex justify-between gap-4 py-4">
+            <div className="flex justify-between gap-4">
               <dt className="text-muted">Last synced</dt>
               <dd className="text-heading">
                 {connected.lastSyncedAt ? (
@@ -160,7 +160,7 @@ export function StoreConnections() {
             </div>
           </dl>
           {connected.lastError ? (
-            <p className="mt-4 text-label text-sold-out">{connected.lastError}</p>
+            <p className="mt-4 text-label text-heading">{connected.lastError}</p>
           ) : null}
           <div className="mt-8 flex flex-wrap gap-3">
             <button
@@ -217,7 +217,7 @@ export function StoreConnections() {
             See{" "}
             <a
               href="/privacy"
-              className="font-bold text-heading underline decoration-primary underline-offset-4"
+              className="font-medium text-heading underline decoration-heading underline-offset-4"
             >
               Privacy
             </a>{" "}
@@ -225,7 +225,7 @@ export function StoreConnections() {
           </p>
         </>
       )}
-      <div role="status" aria-live="polite" className="mt-4 text-label font-bold text-sold-out">
+      <div role="status" aria-live="polite" className="mt-4 text-label font-medium text-heading">
         {message}
       </div>
     </section>

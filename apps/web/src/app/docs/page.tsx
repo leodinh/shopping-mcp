@@ -18,13 +18,13 @@ export default function Docs() {
         <li>Add it to your assistant as a custom MCP server.</li>
         <li>Ask for products — for example, a backpack for commuting.</li>
       </ol>
-      <a href={apiUrl("/mcp.json")} download="shopping-mcp.json" className="btn-composer mt-8">
+      <a href={apiUrl("/mcp.json")} download="shopping-mcp.json" className="btn mt-8">
         Download MCP config
       </a>
       <p className="mt-6 font-mono text-label text-muted">shopping-mcp.json</p>
       <p className="mt-8 text-base text-muted">
         Store owners:{" "}
-        <Link href="/seller" className="font-bold text-heading underline decoration-primary underline-offset-4">
+        <Link href="/seller" className="font-medium text-heading underline decoration-heading underline-offset-4">
           connect your Shopify store
         </Link>{" "}
         so assistants can find your products.

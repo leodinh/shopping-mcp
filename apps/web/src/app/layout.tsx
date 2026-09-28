@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { Atkinson_Hyperlegible } from "next/font/google";
+import { Schibsted_Grotesk } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 
-const talk = Atkinson_Hyperlegible({
+const talk = Schibsted_Grotesk({
   subsets: ["latin"],
-  weight: ["400", "700"],
+  weight: ["400", "500", "600", "700"],
   variable: "--font-talk",
 });
 
@@ -18,10 +18,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={talk.variable} data-scroll-behavior="smooth">
-      <body className="m-0 bg-accent font-sans text-base text-muted">
-        <div className="mx-auto flex h-dvh max-w-3xl flex-col overflow-x-hidden bg-paper shadow-[inset_0_0_120px_40px_rgb(61_107_79_/_0.14)]">
+      <body className="m-0 bg-paper font-sans text-base text-muted">
+        <div className="flex h-dvh flex-col">
           <Header />
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
+          <div className="flex min-h-0 flex-1 flex-col">{children}</div>
           <Footer />
         </div>
       </body>

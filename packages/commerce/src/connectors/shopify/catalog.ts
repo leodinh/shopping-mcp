@@ -1,6 +1,10 @@
 import { z } from "zod";
+import { eq } from "drizzle-orm";
+import { merchantConnections, type Database } from "@shopping-mcp/database";
 import { minorUnits } from "../../catalog/money";
-import type { MerchantConnector, NormalizedProduct } from "../contract";
+import type { ConnectorConnection, MerchantConnector, NormalizedProduct } from "../contract";
+import { encryptCredentials, openCredentials } from "./credentials";
+import { refreshShopifyToken, ShopifyTokenRejected } from "./token";
 
 const MAX_PRODUCTS = 10_000;
 const PAGE_SIZE = 50;
@@ -130,9 +134,57 @@ export async function fetchShopifyCatalog(
   return catalog;
 }
 
-export const shopifyConnector: MerchantConnector & {
-  fetchCatalog(config: unknown, options?: ShopifyFetchOptions): Promise<NormalizedProduct[]>;
-} = {
+const REFRESH_MARGIN_MS = 5 * 60 * 1000;
+const RECONNECT = "Shopify access expired. Reconnect your store.";
+
+/**
+ * Returns an access token Shopify will accept for the next few minutes. Rotated tokens are
+ * written back immediately: once the new refresh token is used, the old one stops working.
+ */
+async function usableAccessToken(shop: string, connection: ConnectorConnection, db: Database) {
+  if (!connection.credentialsEncrypted) throw new Error(RECONNECT);
+  const { credentials, legacy } = openCredentials(connection.credentialsEncrypted);
+  const expiring =
+    connection.tokenExpiresAt !== null &&
+    connection.tokenExpiresAt.getTime() - Date.now() < REFRESH_MARGIN_MS;
+  if (!expiring) {
+    if (legacy) {
+      await db
+        .update(merchantConnections)
+        .set({ credentialsEncrypted: encryptCredentials(credentials) })
+        .where(eq(merchantConnections.id, connection.id));
+    }
+    return credentials.accessToken;
+  }
+  if (!credentials.refreshToken) throw new Error(RECONNECT);
+  let token;
+  try {
+    token = await refreshShopifyToken(shop, credentials.refreshToken);
+  } catch (error) {
+    if (error instanceof ShopifyTokenRejected) throw new Error(RECONNECT, { cause: error });
+    throw error;
+  }
+  await db
+    .update(merchantConnections)
+    .set({
+      credentialsEncrypted: encryptCredentials({
+        accessToken: token.accessToken,
+        refreshToken: token.refreshToken ?? credentials.refreshToken,
+      }),
+      tokenExpiresAt: token.expiresAt,
+      ...(token.refreshToken ? { refreshTokenExpiresAt: token.refreshTokenExpiresAt } : {}),
+      ...(token.scope ? { scopes: token.scope } : {}),
+    })
+    .where(eq(merchantConnections.id, connection.id));
+  return token.accessToken;
+}
+
+export const shopifyConnector: MerchantConnector = {
   type: "shopify",
-  fetchCatalog: fetchShopifyCatalog,
+  async fetchCatalog(connection, db) {
+    const shop = connection.config.shop;
+    if (!shop) throw new Error(RECONNECT);
+    const accessToken = await usableAccessToken(shop, connection, db);
+    return fetchShopifyCatalog({ shop, accessToken });
+  },
 };

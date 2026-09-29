@@ -1,9 +1,10 @@
 import { z } from "zod";
+import { productIdsSchema } from "@shopping-mcp/contracts";
 import { compareProducts } from "@shopping-mcp/commerce/catalog";
 import { catalogToolError, dataResult } from "./responses";
 
 export const compareProductsInput = z.object({
-  productIds: z.array(z.uuid()).min(2).max(5),
+  productIds: productIdsSchema,
 });
 
 export const compareProductsTool = {

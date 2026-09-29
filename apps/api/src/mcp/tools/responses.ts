@@ -19,5 +19,6 @@ export function catalogToolError(error: unknown): CallToolResult {
   if (error instanceof ZodError) {
     return textResult(JSON.stringify({ error: "Invalid parameters", issues: error.issues }), true);
   }
+  console.error("MCP catalog tool failed", error);
   return textResult("Catalog unavailable. Check database setup.", true);
 }

@@ -1,16 +1,10 @@
 import { z } from "zod";
 import { and, desc, eq, gt, inArray, sql } from "drizzle-orm";
-import { searchSchema } from "@shopping-mcp/contracts";
-import { minorUnits } from "./money";
+import { productIdsSchema, searchSchema, type SearchInput } from "@shopping-mcp/contracts";
 import { toCatalogProduct } from "./dto";
 import { database, merchants, products, type Database } from "@shopping-mcp/database";
 
 const productIdSchema = z.uuid().transform((id) => id.toLowerCase());
-const productIdsSchema = z
-  .array(productIdSchema)
-  .min(2)
-  .max(5)
-  .refine((ids) => new Set(ids).size === ids.length, "Product IDs must be unique");
 
 const productSelect = {
   id: products.id,
@@ -30,7 +24,7 @@ const productSelect = {
   },
 };
 
-function catalogWhere(filters: ReturnType<typeof searchSchema.parse>) {
+function catalogWhere(filters: z.output<typeof searchSchema>) {
   const tsquery = sql`websearch_to_tsquery('english', ${filters.q})`;
   return and(
     eq(products.active, true),
@@ -39,12 +33,13 @@ function catalogWhere(filters: ReturnType<typeof searchSchema.parse>) {
     eq(products.currency, filters.currency),
     filters.maxPrice === undefined
       ? undefined
-      : sql`${products.priceMinor} <= ${minorUnits(filters.maxPrice)}::bigint`,
-    filters.inStock === "true" ? gt(products.inventory, 0) : undefined,
+      : // Exact decimal math in Postgres: 19.999 or 1e21 compare correctly, no JS float rounding.
+        sql`${products.priceMinor} <= ${String(filters.maxPrice)}::numeric * 100`,
+    filters.inStock ? gt(products.inventory, 0) : undefined,
   );
 }
 
-export async function searchProducts(input: unknown, db?: Database) {
+export async function searchProducts(input: SearchInput, db?: Database) {
   const filters = searchSchema.parse(input);
   const tsquery = sql`websearch_to_tsquery('english', ${filters.q})`;
   const where = catalogWhere(filters);
@@ -88,7 +83,7 @@ export async function getProductById(id: string, db?: Database) {
 }
 
 export async function compareProducts(ids: string[], db?: Database) {
-  const productIds = productIdsSchema.parse(ids);
+  const productIds = productIdsSchema.parse(ids).map((id) => id.toLowerCase());
   const rows = await (db ?? database())
     .select(productSelect)
     .from(products)

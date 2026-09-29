@@ -36,7 +36,7 @@ Confirmed:
 - Shopify is the only connector. Catalog sync is queued in `sync_runs` and drained by the Nest worker every 10s, capped at 10,000 products per merchant.
 - Seller session is a cookie after OAuth. Shopify credentials are stored encrypted.
 - HTTP catalog APIs exist on the Nest origin (`/api/products`, `/api/merchants`) for the same catalog.
-- Logo asset: `public/logo.png` (cart-with-agent mark).
+- Logo asset: `apps/web/public/logo.png` (cart-with-agent mark).
 
 Undecided / not yet built:
 
@@ -48,12 +48,12 @@ Undecided / not yet built:
 ## Brand Commitments
 
 - Use **Shopping with Agent** in UI chrome and shopper-facing copy; use **Shopping MCP** for the protocol, config filename, and developer surfaces.
-- Preserve `public/logo.png` as the product mark unless the user replaces the asset.
+- Preserve `apps/web/public/logo.png` as the product mark unless the user replaces the asset.
 - Incumbent paper/ink/hatch visual system is **not** binding. The user asked to replace that world; visual replacement belongs to later design work, not this file.
 
 ## Evidence on Hand
 
-- Working MCP catalog, Shopify connect flow, seller status UI, docs, and `public/logo.png`.
+- Working MCP catalog, Shopify connect flow, seller status UI, docs, and `apps/web/public/logo.png`.
 - No testimonials, customers, benchmarks, press, or case studies. Future work must not fabricate them.
 
 ## Product Principles

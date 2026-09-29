@@ -1,4 +1,7 @@
 import { z } from "zod";
+import type { Database, merchantConnections } from "@shopping-mcp/database";
+
+type MerchantConnectionRow = typeof merchantConnections.$inferSelect;
 
 const httpUrl = z.url().refine((value) => ["http:", "https:"].includes(new URL(value).protocol));
 
@@ -15,9 +18,19 @@ export const normalizedProductSchema = z.object({
 
 export type NormalizedProduct = z.infer<typeof normalizedProductSchema>;
 
+/** The stored MerchantConnection a Connector reads its config and credentials from. */
+export type ConnectorConnection = Pick<
+  MerchantConnectionRow,
+  "id" | "config" | "credentialsEncrypted" | "tokenExpiresAt"
+>;
+
 export interface MerchantConnector {
   readonly type: string;
-  fetchCatalog(config: unknown): Promise<NormalizedProduct[]>;
+  /**
+   * Returns the full catalog snapshot. The Connector owns its credentials: it may renew them
+   * and write them back to the connection through `db` before fetching.
+   */
+  fetchCatalog(connection: ConnectorConnection, db: Database): Promise<NormalizedProduct[]>;
 }
 
 export function validateSnapshot(input: unknown): NormalizedProduct[] {

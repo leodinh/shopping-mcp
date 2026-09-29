@@ -17,6 +17,10 @@ export function sessionSecret() {
   return requiredEnv("SESSION_SECRET");
 }
 
+export function credentialsKey() {
+  return requiredEnv("CREDENTIALS_KEY");
+}
+
 export function webOrigin() {
   return process.env.WEB_ORIGIN ?? "http://127.0.0.1:3000";
 }

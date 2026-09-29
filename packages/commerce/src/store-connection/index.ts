@@ -12,12 +12,10 @@ import { encryptCredentials } from "../connectors/shopify/credentials";
 import { enqueueSync } from "../sync/outbox";
 import {
   exchangeShopifyCode,
-  normalizeShopDomain,
-  shopifyAuthorizeUrl,
-  validShopifyHmac,
   type ExchangeCode,
   type ShopifyToken,
-} from "./shopify";
+} from "../connectors/shopify/token";
+import { normalizeShopDomain, shopifyAuthorizeUrl, validShopifyHmac } from "./shopify";
 
 export type { ExchangeCode, ShopifyToken };
 

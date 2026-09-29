@@ -20,6 +20,7 @@ import {
 import { createTestDatabase } from "@shopping-mcp/database/testing";
 
 process.env.SESSION_SECRET = "test-session-secret-32-characters-min";
+process.env.CREDENTIALS_KEY = "test-credentials-key-32-characters-min";
 process.env.SHOPIFY_API_KEY = "test-key";
 process.env.SHOPIFY_API_SECRET = "test-secret";
 process.env.SHOPIFY_SCOPES = "read_products";

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { getConnector } from "@shopping-mcp/commerce/connectors";
-import { mapShopifyProduct, shopifyConnector } from "@shopping-mcp/commerce/connectors/shopify";
+import { fetchShopifyCatalog, mapShopifyProduct } from "@shopping-mcp/commerce/connectors/shopify";
 
 test("mapShopifyProduct uses first variant price and inventory", () => {
   assert.deepEqual(
@@ -62,7 +62,7 @@ test("shopify fetchCatalog paginates and stops at maxProducts", async () => {
   }) as typeof fetch;
 
   try {
-    const catalog = await shopifyConnector.fetchCatalog(
+    const catalog = await fetchShopifyCatalog(
       { shop: "demo.myshopify.com", accessToken: "shpat_test" },
       { pageSize: 50, maxProducts: 75 },
     );

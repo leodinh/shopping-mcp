@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+/**
+ * Catalog search, in real types: agents and the catalog share this exact schema. `maxPrice` is
+ * in major units (19.99 = $19.99). HTTP query strings are converted by the REST adapter.
+ */
 export const searchSchema = z.object({
   q: z.string().trim().max(200).default(""),
   merchantId: z.uuid().optional(),
@@ -7,14 +11,22 @@ export const searchSchema = z.object({
     .string()
     .regex(/^[A-Z]{3}$/)
     .default("USD"),
-  maxPrice: z
-    .string()
-    .regex(/^\d{1,8}(\.\d{1,2})?$/)
-    .optional(),
-  inStock: z.enum(["true", "false"]).default("false"),
-  limit: z.coerce.number().int().min(1).max(100).default(24),
-  offset: z.coerce.number().int().min(0).max(100000).default(0),
+  maxPrice: z.number().nonnegative().optional(),
+  inStock: z.boolean().default(false),
+  limit: z.number().int().min(1).max(100).default(24),
+  offset: z.number().int().min(0).max(100000).default(0),
 });
+
+export type SearchInput = z.input<typeof searchSchema>;
+
+export const productIdsSchema = z
+  .array(z.uuid())
+  .min(2)
+  .max(5)
+  .refine(
+    (ids) => new Set(ids.map((id) => id.toLowerCase())).size === ids.length,
+    "Product IDs must be unique",
+  );
 
 /** Search API DTO: product fields plus nested merchant. Not the Product row. */
 export type CatalogProduct = {

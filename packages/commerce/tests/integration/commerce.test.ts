@@ -63,7 +63,7 @@ test("PostgreSQL sync and search lifecycle", async () => {
     await syncConnection(connections[0], pool, connector);
     await syncConnection(connections[1], pool, connector);
     const initial = await searchProducts(
-      { q: "black backpack", merchantId: merchantIds[0], maxPrice: "100" },
+      { q: "black backpack", merchantId: merchantIds[0], maxPrice: 100 },
       db,
     );
     assert.equal(initial.total, 1);
@@ -93,17 +93,25 @@ test("PostgreSQL sync and search lifecycle", async () => {
     assert.equal(updated.products[0].id, stableId);
     assert.equal(updated.products[0].priceMinor, 9900);
     assert.equal(
-      (await searchProducts({ merchantId: merchantIds[0], inStock: "true" }, db)).total,
+      (await searchProducts({ merchantId: merchantIds[0], inStock: true }, db)).total,
       0,
     );
-    assert.equal(
-      (await searchProducts({ merchantId: merchantIds[0], maxPrice: "98.99" }, db)).total,
-      0,
-    );
-    assert.equal(
-      (await searchProducts({ merchantId: merchantIds[0], maxPrice: "30000000" }, db)).total,
-      1,
-    );
+    // The product now costs 99.00: maxPrice compares exactly, whatever the float looks like.
+    for (const [maxPrice, total] of [
+      [98.99, 0],
+      [98.999, 0],
+      [99, 1],
+      [99.0001, 1],
+      [0.1 + 0.2, 0],
+      [30000000, 1],
+      [1e21, 1],
+    ]) {
+      assert.equal(
+        (await searchProducts({ merchantId: merchantIds[0], maxPrice }, db)).total,
+        total,
+        `maxPrice ${maxPrice}`,
+      );
+    }
     assert.equal(
       (await searchProducts({ merchantId: merchantIds[0], currency: "CAD" }, db)).total,
       0,

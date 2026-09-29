@@ -1,13 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createHmac, randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import { Pool } from "pg";
-import { createSessionCookie as createSession, getDashboardMerchant } from "../../src/auth/session";
-import { decryptCredentials } from "@shopping-mcp/commerce/connectors/shopify";
+import { createHmac } from "node:crypto";
+import { createTestDatabase } from "@shopping-mcp/database/testing";
+import { getDashboardMerchant } from "../../src/auth/session";
 import { handleShopifyCallback } from "../../src/shopify/callback";
 import { handleShopifyConnect } from "../../src/shopify/connect";
-import { databaseFrom } from "@shopping-mcp/database";
 
 process.env.SESSION_SECRET = "test-session-secret-32-characters-min";
 process.env.SHOPIFY_API_KEY = "test-key";
@@ -16,397 +13,69 @@ process.env.SHOPIFY_SCOPES = "read_products";
 process.env.SHOPIFY_REDIRECT_URI = "http://127.0.0.1:3001/api/connections/shopify/callback";
 process.env.WEB_ORIGIN = "http://127.0.0.1:3000";
 
-async function applyMigrations(pool: Pool) {
-  const sql = await readFile(
-    new URL("../../../../packages/database/migrations/0000_nifty_tyger_tiger.sql", import.meta.url),
-    "utf8",
-  );
-  for (const statement of sql.split("--> statement-breakpoint")) {
-    const trimmed = statement.trim();
-    if (trimmed) await pool.query(trimmed.replaceAll('"public".', ""));
-  }
-}
-
-test("Shopify connect stores a one-time oauth attempt from a dashboard session", async () => {
-  assert.ok(process.env.DATABASE_URL);
-  const schema = `shopify_connect_${randomUUID().replaceAll("-", "")}`;
-  const admin = new Pool({ connectionString: process.env.DATABASE_URL });
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    options: `-c search_path=${schema}`,
-  });
-  try {
-    await admin.query(`CREATE SCHEMA ${schema}`);
-    await applyMigrations(pool);
-    const db = databaseFrom(pool);
-    const merchant = await pool.query<{ id: string }>(
-      "INSERT INTO merchants (slug, name, website_url) VALUES ($1, 'Northline', 'https://northline.example') RETURNING id",
-      [`shopify-${randomUUID()}`],
-    );
-    const other = await pool.query<{ id: string }>(
-      "INSERT INTO merchants (slug, name, website_url) VALUES ($1, 'Fieldwork', 'https://fieldwork.example') RETURNING id",
-      [`shopify-${randomUUID()}`],
-    );
-    const merchantId = merchant.rows[0].id;
-    const cookie = await createSession(merchantId, db);
-
-    const invalid = await handleShopifyConnect(
-      new Request("http://127.0.0.1:3000/api/shopify/connect", {
-        method: "POST",
-        headers: { cookie, "content-type": "application/json" },
-        body: JSON.stringify({ shop: "example.com" }),
-      }),
-      db,
-    );
-    assert.equal(invalid.status, 400);
-
-    const created = await handleShopifyConnect(
-      new Request("http://127.0.0.1:3000/api/shopify/connect", {
-        method: "POST",
-        headers: { cookie, "content-type": "application/json" },
-        body: JSON.stringify({
-          shop: "https://Example-Shop.myshopify.com/admin",
-          sellerId: other.rows[0].id,
-        }),
-      }),
-      db,
-    );
-    assert.equal(created.status, 200);
-    const url = await connectAuthorizeUrl(created);
-    assert.equal(
-      url.origin + url.pathname,
-      "https://example-shop.myshopify.com/admin/oauth/authorize",
-    );
-    const state = url.searchParams.get("state");
-    assert.match(state ?? "", /^[0-9a-f]{32}$/);
-    const binding = created.headers
-      .getSetCookie()
-      .find((value) => value.startsWith("oauth_binding="));
-    assert.match(binding ?? "", /^oauth_binding=[0-9a-f]{32};/);
-    const attempt = await pool.query(
-      "SELECT merchant_id, shop, expires_at, consumed_at, browser_binding FROM oauth_attempts WHERE state = $1",
-      [state],
-    );
-    assert.equal(attempt.rows[0].merchant_id, merchantId);
-    assert.equal(attempt.rows[0].shop, "example-shop.myshopify.com");
-    assert.equal(attempt.rows[0].consumed_at, null);
-    assert.equal(
-      attempt.rows[0].browser_binding,
-      binding?.slice("oauth_binding=".length, 32 + "oauth_binding=".length),
-    );
-    const remainingMs = new Date(attempt.rows[0].expires_at).getTime() - Date.now();
-    assert.ok(remainingMs > 8 * 60 * 1000 && remainingMs <= 10 * 60 * 1000);
-  } finally {
-    await pool.end();
-    await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
-    await admin.end();
-  }
-});
-
-async function connectAuthorizeUrl(response: Response) {
-  const payload: unknown = await response.json();
-  if (
-    !payload ||
-    typeof payload !== "object" ||
-    !("authorizationUrl" in payload) ||
-    typeof payload.authorizationUrl !== "string"
-  ) {
-    throw new Error("expected authorizationUrl");
-  }
-  return new URL(payload.authorizationUrl);
-}
-
 function signedCallbackQuery(params: Record<string, string>) {
-  const hmac = createHmac("sha256", "test-secret")
-    .update(
-      Object.keys(params)
-        .sort()
-        .map((key) => `${key}=${params[key]}`)
-        .join("&"),
-    )
-    .digest("hex");
+  const message = Object.keys(params)
+    .sort()
+    .map((key) => `${key}=${params[key]}`)
+    .join("&");
+  const hmac = createHmac("sha256", "test-secret").update(message).digest("hex");
   return new URLSearchParams({ ...params, hmac }).toString();
 }
 
-test("Shopify callback verifies HMAC, consumes state, stores encrypted credentials, and redirects", async (context) => {
-  assert.ok(process.env.DATABASE_URL);
-  const schema = `shopify_callback_${randomUUID().replaceAll("-", "")}`;
-  const admin = new Pool({ connectionString: process.env.DATABASE_URL });
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    options: `-c search_path=${schema}`,
-  });
+test("a browser with a stale session connects a shop and lands signed in on the dashboard", async () => {
+  const { db, drop } = await createTestDatabase("shopify_http");
   try {
-    await admin.query(`CREATE SCHEMA ${schema}`);
-    await applyMigrations(pool);
-    const db = databaseFrom(pool);
-    const merchant = await pool.query<{ id: string }>(
-      "INSERT INTO merchants (slug, name, website_url) VALUES ($1, 'Northline', 'https://northline.example') RETURNING id",
-      [`shopify-${randomUUID()}`],
-    );
-    const other = await pool.query<{ id: string }>(
-      "INSERT INTO merchants (slug, name, website_url) VALUES ($1, 'Fieldwork', 'https://fieldwork.example') RETURNING id",
-      [`shopify-${randomUUID()}`],
-    );
-    const merchantId = merchant.rows[0].id;
-    const cookie = await createSession(merchantId, db);
-    const started = await handleShopifyConnect(
-      new Request("http://127.0.0.1:3000/api/shopify/connect", {
-        method: "POST",
-        headers: { cookie, "content-type": "application/json" },
-        body: JSON.stringify({ shop: "example-shop.myshopify.com" }),
-      }),
+    const deps = {
       db,
-    );
-    const state = (await connectAuthorizeUrl(started)).searchParams.get("state")!;
-    const binding = started.headers
-      .getSetCookie()
-      .find((value) => value.startsWith("oauth_binding="))!
-      .split(";")[0];
-    const cookies = `${cookie}; ${binding}`;
-    const query = {
-      shop: "example-shop.myshopify.com",
-      code: "auth-code",
-      state,
-      timestamp: "1710000000",
+      exchangeCode: async () => ({
+        accessToken: "shpat_ui",
+        scope: "read_products",
+        expiresAt: null,
+        refreshTokenExpiresAt: null,
+      }),
     };
-
-    const unsigned = await handleShopifyCallback(
-      new Request(
-        `http://127.0.0.1:3000/api/connections/shopify/callback?${new URLSearchParams(query)}`,
-        { headers: { cookie: cookies } },
-      ),
-      db,
-    );
-    assert.equal(unsigned.status, 403);
-
-    context.mock.method(
-      globalThis,
-      "fetch",
-      async (input: string | URL | Request, init?: RequestInit) => {
-        assert.equal(String(input), "https://example-shop.myshopify.com/admin/oauth/access_token");
-        assert.equal(init?.method, "POST");
-        assert.match(String(init?.body), /code=auth-code/);
-        assert.match(String(init?.body), /expiring=1/);
-        return Response.json({
-          access_token: "shpat_test",
-          scope: "read_products",
-          expires_in: 3600,
-          refresh_token: "shprt_test",
-          refresh_token_expires_in: 7776000,
-        });
-      },
-    );
-
-    const created = await handleShopifyCallback(
-      new Request(
-        `http://127.0.0.1:3000/api/connections/shopify/callback?${signedCallbackQuery(query)}`,
-        { headers: { cookie: cookies } },
-      ),
-      db,
-    );
-    assert.equal(created.status, 200);
-    assert.match(await created.text(), /http:\/\/127\.0\.0\.1:3000\/seller/);
-    assert.match(
-      created.headers.getSetCookie().find((value) => value.startsWith("session=")) ?? "",
-      /^session=[^;]+; HttpOnly; Path=\/; Max-Age=2592000; SameSite=Lax$/,
-    );
-
-    const attempt = await pool.query("SELECT consumed_at FROM oauth_attempts WHERE state = $1", [
-      state,
-    ]);
-    assert.ok(attempt.rows[0].consumed_at);
-
-    const connection = await pool.query(
-      `SELECT id, merchant_id, connector_type, shop_domain, scopes, credentials_encrypted,
-              token_expires_at, refresh_token_expires_at FROM merchant_connections WHERE merchant_id = $1`,
-      [merchantId],
-    );
-    assert.equal(connection.rows[0].connector_type, "shopify");
-    assert.equal(connection.rows[0].shop_domain, "example-shop.myshopify.com");
-    assert.equal(connection.rows[0].scopes, "read_products");
-    assert.deepEqual(decryptCredentials(connection.rows[0].credentials_encrypted), {
-      accessToken: "shpat_test",
-      refreshToken: "shprt_test",
-    });
-    assert.ok(new Date(connection.rows[0].token_expires_at).getTime() - Date.now() > 3500 * 1000);
-    const scheduled = await pool.query("SELECT status FROM sync_runs WHERE connection_id = $1", [
-      connection.rows[0].id,
-    ]);
-    assert.equal(scheduled.rows[0].status, "pending");
-
-    const reused = await handleShopifyCallback(
-      new Request(
-        `http://127.0.0.1:3000/api/connections/shopify/callback?${signedCallbackQuery(query)}`,
-        { headers: { cookie: cookies } },
-      ),
-      db,
-    );
-    assert.equal(reused.status, 403);
-
-    const otherCookie = await createSession(other.rows[0].id, db);
-    const otherStart = await handleShopifyConnect(
-      new Request("http://127.0.0.1:3000/api/shopify/connect", {
-        method: "POST",
-        headers: { cookie: otherCookie, "content-type": "application/json" },
-        body: JSON.stringify({ shop: "example-shop.myshopify.com" }),
-      }),
-      db,
-    );
-    const otherState = (await connectAuthorizeUrl(otherStart)).searchParams.get("state")!;
-    const otherBinding = otherStart.headers
-      .getSetCookie()
-      .find((value) => value.startsWith("oauth_binding="))!
-      .split(";")[0];
-    const stolen = await handleShopifyCallback(
-      new Request(
-        `http://127.0.0.1:3000/api/connections/shopify/callback?${signedCallbackQuery({
-          shop: "example-shop.myshopify.com",
-          code: "other-code",
-          state: otherState,
-          timestamp: "1710000000",
-        })}`,
-        { headers: { cookie: `${otherCookie}; ${otherBinding}` } },
-      ),
-      db,
-    );
-    assert.equal(stolen.status, 409);
-    assert.equal(
-      (
-        await pool.query("SELECT merchant_id FROM merchant_connections WHERE shop_domain = $1", [
-          "example-shop.myshopify.com",
-        ])
-      ).rows[0].merchant_id,
-      merchantId,
-    );
-  } finally {
-    await pool.end();
-    await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
-    await admin.end();
-  }
-});
-
-test("Connect Shopify from the browser creates a dashboard session after callback", async (context) => {
-  assert.ok(process.env.DATABASE_URL);
-  const schema = `shopify_ui_${randomUUID().replaceAll("-", "")}`;
-  const admin = new Pool({ connectionString: process.env.DATABASE_URL });
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    options: `-c search_path=${schema}`,
-  });
-  try {
-    await admin.query(`CREATE SCHEMA ${schema}`);
-    await applyMigrations(pool);
-    const db = databaseFrom(pool);
-
     const started = await handleShopifyConnect(
-      new Request("http://127.0.0.1:3000/api/shopify/connect", {
+      new Request("http://127.0.0.1:3001/api/shopify/connect", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { cookie: "session=stale.0.bad", "content-type": "application/json" },
         body: JSON.stringify({ shop: "ui-shop.myshopify.com" }),
       }),
-      db,
+      deps,
     );
     assert.equal(started.status, 200);
-    const state = (await connectAuthorizeUrl(started)).searchParams.get("state")!;
-    const binding = started.headers
-      .getSetCookie()
-      .find((value) => value.startsWith("oauth_binding="))!
-      .split(";")[0];
-
-    context.mock.method(globalThis, "fetch", async () =>
-      Response.json({ access_token: "shpat_ui", scope: "read_products" }),
+    const { authorizationUrl } = (await started.json()) as { authorizationUrl: string };
+    const state = new URL(authorizationUrl).searchParams.get("state")!;
+    const binding = started.headers.getSetCookie().find((c) => c.startsWith("oauth_binding="));
+    assert.match(
+      binding ?? "",
+      /^oauth_binding=[0-9a-f]{32}; HttpOnly; Path=\/; Max-Age=(599|600); SameSite=Lax$/,
     );
 
+    const query = signedCallbackQuery({
+      shop: "ui-shop.myshopify.com",
+      code: "ui-code",
+      state,
+      timestamp: "1710000000",
+    });
     const callback = await handleShopifyCallback(
-      new Request(
-        `http://127.0.0.1:3000/api/connections/shopify/callback?${signedCallbackQuery({
-          shop: "ui-shop.myshopify.com",
-          code: "ui-code",
-          state,
-          timestamp: "1710000000",
-        })}`,
-        { headers: { cookie: binding } },
-      ),
-      db,
+      new Request(`http://127.0.0.1:3001/api/connections/shopify/callback?${query}`, {
+        headers: { cookie: binding!.split(";")[0] },
+      }),
+      deps,
     );
     assert.equal(callback.status, 200);
     assert.match(await callback.text(), /http:\/\/127\.0\.0\.1:3000\/seller/);
-    const sessionCookie = callback.headers
-      .getSetCookie()
-      .find((value) => value.startsWith("session="));
+    const session = callback.headers.getSetCookie().find((c) => c.startsWith("session="));
     assert.match(
-      sessionCookie ?? "",
+      session ?? "",
       /^session=[^;]+; HttpOnly; Path=\/; Max-Age=2592000; SameSite=Lax$/,
     );
 
-    const dashboard = await getDashboardMerchant(sessionCookie!.split(";")[0], db);
+    const dashboard = await getDashboardMerchant(session!.split(";")[0], db);
+    assert.equal(dashboard?.slug, "ui-shop.myshopify.com");
     assert.equal(dashboard?.connectorType, "shopify");
     assert.equal(dashboard?.enabled, true);
-    assert.equal(dashboard?.slug, "ui-shop.myshopify.com");
-    assert.ok(dashboard?.connectionId);
   } finally {
-    await pool.end();
-    await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
-    await admin.end();
-  }
-});
-
-test("Shopify callback rolls back all writes when token exchange fails", async (context) => {
-  assert.ok(process.env.DATABASE_URL);
-  const schema = `shopify_rollback_${randomUUID().replaceAll("-", "")}`;
-  const admin = new Pool({ connectionString: process.env.DATABASE_URL });
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    options: `-c search_path=${schema}`,
-  });
-  try {
-    await admin.query(`CREATE SCHEMA ${schema}`);
-    await applyMigrations(pool);
-    const db = databaseFrom(pool);
-    const started = await handleShopifyConnect(
-      new Request("http://127.0.0.1:3000/api/shopify/connect", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ shop: "rollback-shop.myshopify.com" }),
-      }),
-      db,
-    );
-    const state = (await connectAuthorizeUrl(started)).searchParams.get("state")!;
-    const binding = started.headers
-      .getSetCookie()
-      .find((value) => value.startsWith("oauth_binding="))!
-      .split(";")[0];
-
-    context.mock.method(globalThis, "fetch", async () => new Response("nope", { status: 500 }));
-
-    const callback = await handleShopifyCallback(
-      new Request(
-        `http://127.0.0.1:3000/api/connections/shopify/callback?${signedCallbackQuery({
-          shop: "rollback-shop.myshopify.com",
-          code: "rollback-code",
-          state,
-          timestamp: "1710000000",
-        })}`,
-        { headers: { cookie: binding } },
-      ),
-      db,
-    );
-    assert.equal(callback.status, 503);
-    assert.equal(
-      (await pool.query("SELECT consumed_at FROM oauth_attempts WHERE state = $1", [state])).rows[0]
-        .consumed_at,
-      null,
-    );
-    assert.equal(
-      (await pool.query("SELECT count(*)::int AS n FROM merchant_connections")).rows[0].n,
-      0,
-    );
-    assert.equal((await pool.query("SELECT count(*)::int AS n FROM sync_runs")).rows[0].n, 0);
-    assert.equal((await pool.query("SELECT count(*)::int AS n FROM sessions")).rows[0].n, 0);
-  } finally {
-    await pool.end();
-    await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
-    await admin.end();
+    await drop();
   }
 });

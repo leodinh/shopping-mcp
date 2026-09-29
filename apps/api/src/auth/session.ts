@@ -33,13 +33,17 @@ export async function destroySessionCookie(cookieHeader: string | null) {
   return clearSessionCookie();
 }
 
-export async function getDashboardMerchant(cookieHeader: string | null, db?: Database) {
-  let merchantId: string;
+/** The signed-in Merchant, or null when the session cookie is missing, tampered, or expired. */
+export async function currentMerchantId(cookieHeader: string | null, db?: Database) {
   try {
-    merchantId = await requireSession(sessionToken(cookieHeader), db);
+    return await requireSession(sessionToken(cookieHeader), db);
   } catch (error) {
     if (error instanceof Error && error.message === "Unauthorized") return null;
     throw error;
   }
-  return getMerchantStatus(merchantId, db);
+}
+
+export async function getDashboardMerchant(cookieHeader: string | null, db?: Database) {
+  const merchantId = await currentMerchantId(cookieHeader, db);
+  return merchantId ? getMerchantStatus(merchantId, db) : null;
 }

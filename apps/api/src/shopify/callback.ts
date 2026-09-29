@@ -1,14 +1,18 @@
-import { completeShopifyConnect } from "@shopping-mcp/commerce/connectors/shopify";
+import {
+  completeStoreConnection,
+  type StoreConnectionDeps,
+} from "@shopping-mcp/commerce/store-connection";
 import { sellerDashboardUrl } from "@shopping-mcp/config";
-import { database, type Database } from "@shopping-mcp/database";
 import { sessionCookie } from "../auth/session";
+import { storeConnectionFailure } from "./connect";
 
-export async function handleShopifyCallback(request: Request, db: Database = database()) {
+export async function handleShopifyCallback(request: Request, deps: StoreConnectionDeps = {}) {
   try {
     const url = new URL(request.url);
     const browserBinding =
       request.headers.get("cookie")?.match(/(?:^|;\s*)oauth_binding=([^;]+)/)?.[1] ?? "";
-    const result = await completeShopifyConnect(url.searchParams, browserBinding, db);
+    const result = await completeStoreConnection(url.searchParams, browserBinding, deps);
+    if (!result.ok) return storeConnectionFailure(result.reason);
     const sellerUrl = sellerDashboardUrl();
     // 200 + same-site navigation: Chrome drops Set-Cookie on a cross-site 302 bounce.
     return new Response(
@@ -23,15 +27,6 @@ export async function handleShopifyCallback(request: Request, db: Database = dat
       },
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Request failed";
-    if (message === "Invalid HMAC" || message === "Invalid state") {
-      return Response.json({ error: message }, { status: 403 });
-    }
-    if (message === "Invalid shop domain")
-      return Response.json({ error: message }, { status: 400 });
-    if (message === "Unauthorized") return Response.json({ error: message }, { status: 401 });
-    if (message === "Shop already connected")
-      return Response.json({ error: message }, { status: 409 });
     console.error("Shopify callback failed", error);
     return Response.json({ error: "Shopify callback unavailable." }, { status: 503 });
   }

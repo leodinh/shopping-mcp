@@ -1,32 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import { Pool } from "pg";
 import { eq } from "drizzle-orm";
 import { drainSyncRuns, enqueueSync } from "@shopping-mcp/commerce/sync";
 import type { MerchantConnector, NormalizedProduct } from "@shopping-mcp/commerce/connectors";
-import { databaseFrom, merchantConnections, merchants, syncRuns } from "@shopping-mcp/database";
-
-async function applyMigrations(pool: Pool) {
-  const sql = await readFile(
-    new URL("../../../../packages/database/migrations/0000_nifty_tyger_tiger.sql", import.meta.url),
-    "utf8",
-  );
-  for (const statement of sql.split("--> statement-breakpoint")) {
-    const trimmed = statement.trim();
-    if (trimmed) await pool.query(trimmed.replaceAll('"public".', ""));
-  }
-}
+import { merchantConnections, merchants, syncRuns } from "@shopping-mcp/database";
+import { createTestDatabase } from "@shopping-mcp/database/testing";
 
 test("sync outbox enqueues once, drains pending, and reclaims stale running", async () => {
-  assert.ok(process.env.DATABASE_URL, "DATABASE_URL is required; run db:migrate first");
-  const schema = `sync_outbox_${randomUUID().replaceAll("-", "")}`;
-  const admin = new Pool({ connectionString: process.env.DATABASE_URL });
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    options: `-c search_path=${schema}`,
-  });
+  const { pool, db, drop } = await createTestDatabase("sync_outbox");
   const snapshot: NormalizedProduct[] = [
     {
       externalId: "mug",
@@ -46,10 +28,6 @@ test("sync outbox enqueues once, drains pending, and reclaims stale running", as
     },
   };
   try {
-    await admin.query(`CREATE SCHEMA ${schema}`);
-    await applyMigrations(pool);
-    const db = databaseFrom(pool);
-
     const [merchant] = await db
       .insert(merchants)
       .values({
@@ -102,8 +80,6 @@ test("sync outbox enqueues once, drains pending, and reclaims stale running", as
     assert.equal(reclaimed[0].id, stale.id);
     assert.equal(reclaimed[0].status, "succeeded");
   } finally {
-    await admin.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);
-    await pool.end();
-    await admin.end();
+    await drop();
   }
 });

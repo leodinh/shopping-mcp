@@ -9,7 +9,8 @@
     "./merchants": "./src/merchants/index.ts",
     "./sync": "./src/sync/index.ts",
     "./connectors": "./src/connectors/index.ts",
-    "./connectors/shopify": "./src/connectors/shopify/index.ts"
+    "./connectors/shopify": "./src/connectors/shopify/index.ts",
+    "./store-connection": "./src/store-connection/index.ts"
   },
   "dependencies": {
     "@shopping-mcp/config": "workspace:*",

@@ -1,5 +1,6 @@
 node_modules/
 .next/
+.vscode/
 dist/
 .pnpm-store/
 .env

@@ -4,11 +4,10 @@ import { merchantConnections, type Database } from "@shopping-mcp/database";
 import { minorUnits } from "../../catalog/money";
 import type { ConnectorConnection, MerchantConnector, NormalizedProduct } from "../contract";
 import { encryptCredentials, openCredentials } from "./credentials";
-import { refreshShopifyToken, ShopifyTokenRejected } from "./token";
+import { refreshShopifyToken, SHOPIFY_API_VERSION, ShopifyTokenRejected } from "./token";
 
 const MAX_PRODUCTS = 10_000;
 const PAGE_SIZE = 50;
-const API_VERSION = "2025-01";
 
 const shopifyConfigSchema = z.object({
   shop: z.string().regex(/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/),
@@ -85,7 +84,7 @@ export async function fetchShopifyCatalog(
   let currency = "USD";
 
   while (catalog.length < maxProducts) {
-    const response = await fetch(`https://${shop}/admin/api/${API_VERSION}/graphql.json`, {
+    const response = await fetch(`https://${shop}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

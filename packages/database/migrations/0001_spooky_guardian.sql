@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "sync_runs_active_connection_idx" ON "sync_runs" USING btree ("connection_id") WHERE "sync_runs"."status" IN ('pending', 'running');

@@ -1,2 +1,2 @@
 export { syncConnection } from "./service";
-export { enqueueSync, drainSyncRuns } from "./outbox";
+export { enqueueSync, enqueueDueSyncs, drainSyncRuns } from "./outbox";

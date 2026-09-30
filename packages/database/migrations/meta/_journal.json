@@ -8,6 +8,13 @@
       "when": 1789332232565,
       "tag": "0000_nifty_tyger_tiger",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790797229476,
+      "tag": "0001_spooky_guardian",
+      "breakpoints": true
     }
   ]
 }

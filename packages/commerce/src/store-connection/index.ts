@@ -16,12 +16,19 @@ import {
   type ShopifyToken,
 } from "../connectors/shopify/token";
 import { normalizeShopDomain, shopifyAuthorizeUrl, validShopifyHmac } from "./shopify";
+import { registerShopifyWebhooks } from "./webhooks";
 
 export type { ExchangeCode, ShopifyToken };
 
 const ATTEMPT_TTL_MS = 10 * 60 * 1000;
 
-export type StoreConnectionDeps = { db?: Database; exchangeCode?: ExchangeCode };
+export type StoreConnectionDeps = {
+  db?: Database;
+  exchangeCode?: ExchangeCode;
+  registerWebhooks?: (shop: string, accessToken: string) => Promise<void>;
+};
+
+export { handleShopifyWebhook, type ShopifyWebhook } from "./webhooks";
 
 type Conflict = "shop_taken" | "shop_mismatch";
 
@@ -105,6 +112,12 @@ export async function completeStoreConnection(
       await enqueueSync(connectionId, tx);
       return createSession(merchantId, tx);
     });
+    try {
+      await (deps.registerWebhooks ?? registerShopifyWebhooks)(shop, token.accessToken);
+    } catch (error) {
+      // Connecting must not fail over this; without it an uninstall just surfaces as a failed sync.
+      console.error("Shopify webhook registration failed", error);
+    }
     return { ok: true, sessionToken };
   } catch (error) {
     // merchant_id conflicts are upserted, so a unique violation here is shop_domain: lost a race.

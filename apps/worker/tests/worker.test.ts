@@ -2,17 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { OutboxProcessor } from "../src/processors/outbox.processor";
 
-test("outbox processor drains immediately and again after the interval", async () => {
-  const calls: number[] = [];
+test("each tick queues due syncs, then drains; immediately and again after the interval", async () => {
+  const calls: string[] = [];
   const processor = new OutboxProcessor({
-    drain: async () => {
-      calls.push(Date.now());
-      return [];
-    },
+    enqueueDue: async () => (calls.push("due"), 0),
+    drain: async () => (calls.push("drain"), []),
     intervalMs: 20,
   });
   processor.start();
   await new Promise((resolve) => setTimeout(resolve, 50));
   processor.stop();
-  assert.ok(calls.length >= 2, `expected at least two drains, got ${calls.length}`);
+  assert.ok(calls.length >= 4, `expected at least two ticks, got ${calls.join(",")}`);
+  assert.deepEqual(calls.slice(0, 4), ["due", "drain", "due", "drain"]);
 });

@@ -10,6 +10,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -139,6 +140,10 @@ export const syncRuns = pgTable(
       "sync_runs_status_check",
       sql`${table.status} IN ('pending', 'running', 'succeeded', 'failed')`,
     ),
+    // At most one queued or running sync per connection, however many workers enqueue.
+    uniqueIndex("sync_runs_active_connection_idx")
+      .on(table.connectionId)
+      .where(sql`${table.status} IN ('pending', 'running')`),
   ],
 );
 

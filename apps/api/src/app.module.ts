@@ -5,6 +5,7 @@ import { HealthController } from "./health/health.controller";
 import { ShopifyController } from "./shopify/shopify.controller";
 import { McpController } from "./mcp/mcp.controller";
 import { MerchantsController } from "./merchants/merchants.controller";
+import { WebhooksController } from "./webhooks/webhooks.controller";
 
 @Module({
   controllers: [
@@ -14,6 +15,7 @@ import { MerchantsController } from "./merchants/merchants.controller";
     AuthController,
     ShopifyController,
     McpController,
+    WebhooksController,
   ],
 })
 export class AppModule {}

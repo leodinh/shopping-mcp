@@ -28,7 +28,7 @@ Prerequisites: Node.js 22+, pnpm, PostgreSQL 17+, and a Shopify app for connecti
    pnpm dev
    ```
 
-`pnpm dev` starts three processes: the Next.js UI at http://127.0.0.1:3000, the Nest API and MCP server at http://127.0.0.1:3001, and a worker that drains catalog sync every 10s. Start them separately with `pnpm dev:web`, `pnpm dev:api`, and `pnpm dev:worker`.
+`pnpm dev` starts three processes: the Next.js UI at http://127.0.0.1:3000, the Nest API and MCP server at http://127.0.0.1:3001, and a worker that, every 10s, queues syncs that are due and drains the sync queue. Start them separately with `pnpm dev:web`, `pnpm dev:api`, and `pnpm dev:worker`.
 
 Then open http://127.0.0.1:3000/seller and connect a Shopify store.
 
@@ -59,6 +59,9 @@ One Shopify app serves every merchant; merchants never configure anything. In yo
 2. Add `SHOPIFY_REDIRECT_URI` to the allowed redirect URLs, character for character (`127.0.0.1` ≠ `localhost`, `http` ≠ `https`, port and trailing slash matter). On the Dev Dashboard, settings live in a version: create and **release** it.
 3. Add one redirect URL per environment you run (local, staging, production), or use a separate app per environment.
 4. Only stores the app's distribution allows can connect: custom distribution limits installs to specific stores; public distribution allows any store.
+5. Point the mandatory compliance webhooks (`customers/data_request`, `customers/redact`, `shop/redact`) at `https://<api-host>/api/webhooks/shopify`. They can only be set in app settings, not through the API, and public distribution requires them.
+
+The `app/uninstalled` webhook needs no setup: after each connect, the API subscribes the shop to the same endpoint, whose URL comes from `SHOPIFY_REDIRECT_URI`. Shopify only delivers to HTTPS, so with a plain `http://` redirect URI (local development) the subscription is skipped with a warning.
 
 If the dashboard rejects an `http://` URL, expose the API through an HTTPS tunnel (`cloudflared tunnel --url http://127.0.0.1:3001` or `ngrok http 3001`) and use that URL for both the dashboard and `SHOPIFY_REDIRECT_URI`.
 
@@ -89,7 +92,7 @@ Endpoint: `http://127.0.0.1:3001/api/mcp`. `GET /mcp.json` downloads a `shopping
 | `compare_products` | `compareProducts()` | Retrieve consistent details for 2–5 products so an assistant can explain differences |
 | `get_checkout`     | `getCheckout()`     | Look up a merchant checkout URL; currently returns `supported: false`                |
 
-Tool inputs use the catalog's own schemas from `packages/contracts`, so a tool never advertises input the catalog would reject. `search_products` takes real types: `maxPrice` is a number in major units (`19.99` = $19.99), `inStock` a boolean. `compare_products` takes 2–5 distinct product IDs.
+Tool inputs use the catalog's own schemas from `packages/contracts`, so a tool never advertises input the catalog would reject. `search_products` takes real types: `maxPrice` is a number in major units (`19.99` = 19.99 USD) and requires `currency`; `inStock` is a boolean. Without `currency`, search spans every currency and each product carries its own. `compare_products` takes 2–5 distinct product IDs.
 
 ## HTTP API
 
@@ -99,16 +102,18 @@ curl 'http://127.0.0.1:3001/api/products?inStock=true&limit=5&offset=0'
 curl 'http://127.0.0.1:3001/api/merchants'
 ```
 
-`GET /api/products` accepts `q` (up to 200 characters), optional `merchantId` (UUID), `currency` (uppercase, default USD), `maxPrice` (non-negative number in major units), `inStock` (`true`/`false`), `limit` (1–100, default 24), and `offset` (0–100000). It returns `{ products, total, limit, offset }`. Each product includes its merchant, stable internal ID, external ID, name, description, `priceMinor`, currency, images, inventory, product URL, and update time. Invalid filters return 400; database unavailability returns 503 without database details. The controller only converts query strings into the same typed search the MCP tool uses.
+`GET /api/products` accepts `q` (up to 200 characters), optional `merchantId` (UUID), optional `currency` (ISO 4217, e.g. `USD`; omit to search every currency), `maxPrice` (non-negative number in major units; requires `currency`), `inStock` (`true`/`false`), `limit` (1–100, default 24), and `offset` (0–100000). It returns `{ products, total, limit, offset }`. Each product includes its merchant, stable internal ID, external ID, name, description, `priceMinor`, currency, images, inventory, product URL, and update time. Invalid filters return 400; database unavailability returns 503 without database details. The controller only converts query strings into the same typed search the MCP tool uses.
 
 The API filters by currency; it does not convert currencies. Prices assume two-decimal currencies (see issue #7).
+
+Only fresh catalogs are served: search, `get_product`, and `compare_products` skip products whose connection is disabled or has not synced successfully in 7 days. A store whose syncs keep failing drops out instead of assistants quoting week-old prices and stock.
 
 ## Architecture
 
 ```text
 apps/web (Next :3000) ──credentialed fetch──> apps/api (Nest :3001) ──> packages/commerce ──> PostgreSQL
                                                                                ↑
-apps/worker (no HTTP) ── every 10s drainSyncRuns ── sync_runs outbox ─────────┘
+apps/worker (no HTTP) ── every 10s: enqueueDueSyncs + drainSyncRuns ── sync_runs ┘
 ```
 
 This is a **pnpm workspace**, not a distributed commerce backend. Business operations live in `packages/commerce` and are shared by the API and worker. Import its feature entry points (`@shopping-mcp/commerce/catalog`, `/merchants`, `/auth`, `/sync`, `/store-connection`, `/connectors`, and `/connectors/shopify`); there is no root barrel export.
@@ -138,7 +143,7 @@ Both return typed outcomes (`{ ok: false, reason }`); the API maps each reason t
 
 ### Sync semantics
 
-1. Enqueue a `sync_runs` row (`pending`) on Store connection or seller retry. Dedup if pending/running already exists.
+1. Enqueue a `sync_runs` row (`pending`) on Store connection, on seller retry, and automatically for every enabled connection not attempted in the last 6 hours (checked each worker tick, so each store comes due on its own schedule). A partial unique index allows at most one pending or running run per connection, however many workers run.
 2. The worker claims one run every 10s (`running`, or stale `running` older than 10 minutes), then:
    1. Acquire a PostgreSQL advisory lock for the connection; concurrent sync attempts fail fast.
    2. The connector prepares its credentials. Shopify access tokens expire after an hour: within 5 minutes of expiry the connector refreshes them and stores the rotated tokens immediately, before fetching. A rejected refresh fails with "Shopify access expired. Reconnect your store."
@@ -153,6 +158,16 @@ An explicitly complete empty snapshot deactivates all products for that merchant
 ### Search
 
 PostgreSQL maintains an English `tsvector` from product name and description, indexed with GIN. `websearch_to_tsquery` supports word matching, phrases, and OR; relevance plus name and ID gives deterministic ordering. This is word-based search, not typo correction or substring matching. Price and stock filters run in SQL; `maxPrice` is compared with exact `numeric` math, so values like `19.999` behave correctly. Count and page are read from one repeatable-read snapshot so they stay consistent during sync.
+
+### Shopify webhooks
+
+`POST /api/webhooks/shopify` verifies `X-Shopify-Hmac-Sha256` against the raw request body, then acts on `X-Shopify-Topic`:
+
+- `app/uninstalled`: disable the connection and delete its credentials. The store drops out of search at once; reconnecting restores it.
+- `shop/redact` (48h after uninstall): delete the Merchant and everything held for the shop.
+- `customers/data_request`, `customers/redact`: acknowledged; no customer data is stored.
+
+Bad signatures get 401; processing errors get 503 so Shopify retries.
 
 ### Boundaries
 
@@ -185,6 +200,8 @@ The API and worker run TypeScript through `tsx`; they do not emit build artifact
 - **`CREDENTIALS_KEY is required`**: set it in `.env`; see [Configuration](#configuration).
 - **Catalog setup screen / 503**: check `.env`, database health, and `pnpm run db:migrate`.
 - **Sync fetch failed**: check the Shopify connection and scopes. The previous catalog remains intact.
-- **No products**: connect a Shopify store, then wait for the worker or use Retry sync on `/seller`.
+- **No products**: connect a Shopify store, then wait for the worker or use Retry sync on `/seller`. Stores that are disabled or have not synced in 7 days are hidden.
+- **"Shopify app uninstalled. Reconnect your store."** on `/seller`: the app was uninstalled from the shop. Connect it again.
+- **`there is no unique or exclusion constraint matching the ON CONFLICT specification`**: run `pnpm run db:migrate`.
 - **Database connection refused**: make sure `DATABASE_URL` matches your PostgreSQL host and port.
 - **Migration ledger errors on an old database**: databases built by the old SQL runner must be recreated before `pnpm run db:migrate`.

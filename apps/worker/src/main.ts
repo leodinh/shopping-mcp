@@ -3,7 +3,7 @@ import { NestFactory } from "@nestjs/core";
 import { WorkerModule } from "./worker.module";
 
 const app = await NestFactory.createApplicationContext(WorkerModule);
-console.log("Worker draining sync_runs every 10s");
+console.log("Worker: every 10s, queue syncs due (6h) and drain sync_runs");
 const shutdown = async () => {
   await app.close();
   process.exit(0);

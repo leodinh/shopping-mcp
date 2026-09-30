@@ -24,13 +24,28 @@ const productSelect = {
   },
 };
 
+const FRESH_FOR = "7 days";
+
+// Served products: active, from an enabled connection that synced successfully within FRESH_FOR.
+// A store whose syncs keep failing (expired access, uninstalled app) drops out instead of
+// assistants quoting week-old prices and stock.
+const servable = and(
+  eq(products.active, true),
+  sql`EXISTS (
+    SELECT 1 FROM merchant_connections c
+    WHERE c.merchant_id = ${products.merchantId}
+      AND c.enabled
+      AND c.last_synced_at > now() - ${FRESH_FOR}::interval
+  )`,
+);
+
 function catalogWhere(filters: z.output<typeof searchSchema>) {
   const tsquery = sql`websearch_to_tsquery('english', ${filters.q})`;
   return and(
-    eq(products.active, true),
+    servable,
     filters.q === "" ? undefined : sql`${products.searchDocument} @@ ${tsquery}`,
     filters.merchantId ? eq(products.merchantId, filters.merchantId) : undefined,
-    eq(products.currency, filters.currency),
+    filters.currency ? eq(products.currency, filters.currency) : undefined,
     filters.maxPrice === undefined
       ? undefined
       : // Exact decimal math in Postgres: 19.999 or 1e21 compare correctly, no JS float rounding.
@@ -78,7 +93,7 @@ export async function getProductById(id: string, db?: Database) {
     .select(productSelect)
     .from(products)
     .innerJoin(merchants, eq(products.merchantId, merchants.id))
-    .where(and(eq(products.active, true), eq(products.id, productId)));
+    .where(and(servable, eq(products.id, productId)));
   return row ? toCatalogProduct(row) : null;
 }
 
@@ -88,7 +103,7 @@ export async function compareProducts(ids: string[], db?: Database) {
     .select(productSelect)
     .from(products)
     .innerJoin(merchants, eq(products.merchantId, merchants.id))
-    .where(and(eq(products.active, true), inArray(products.id, productIds)));
+    .where(and(servable, inArray(products.id, productIds)));
   const byId = new Map(rows.map(toCatalogProduct).map((product) => [product.id, product]));
   return {
     products: productIds.flatMap((productId) => {

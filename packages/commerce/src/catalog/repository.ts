@@ -30,7 +30,7 @@ function catalogWhere(filters: z.output<typeof searchSchema>) {
     eq(products.active, true),
     filters.q === "" ? undefined : sql`${products.searchDocument} @@ ${tsquery}`,
     filters.merchantId ? eq(products.merchantId, filters.merchantId) : undefined,
-    eq(products.currency, filters.currency),
+    filters.currency ? eq(products.currency, filters.currency) : undefined,
     filters.maxPrice === undefined
       ? undefined
       : // Exact decimal math in Postgres: 19.999 or 1e21 compare correctly, no JS float rounding.

@@ -48,10 +48,21 @@ test("agents see the catalog's own search schema: maxPrice is a number", async (
 
 test("search_products accepts any non-negative price an agent sends", async () => {
   for (const maxPrice of [19.999, 0.1 + 0.2, 1e21]) {
-    const { result } = await call("search_products", { q: "mug", maxPrice, inStock: true });
+    const { result } = await call("search_products", {
+      q: "mug",
+      currency: "USD",
+      maxPrice,
+      inStock: true,
+    });
     assert.notEqual(result?.isError, true, `${maxPrice}: ${result?.content?.[0]?.text}`);
     assert.ok(Array.isArray(result?.structuredContent?.products));
   }
+});
+
+test("search_products tells the agent to set currency with maxPrice", async () => {
+  const response = await call("search_products", { q: "mug", maxPrice: 20 });
+  const message = response.error?.message ?? response.result?.content?.[0]?.text ?? "";
+  assert.match(message, /Set currency when using maxPrice/);
 });
 
 test("compare_products rejects duplicate IDs up front; get_product reports a missing product", async () => {
@@ -66,9 +77,13 @@ test("compare_products rejects duplicate IDs up front; get_product reports a mis
 
 test("REST search still takes query strings", async () => {
   const server = app.getHttpServer();
-  const ok = await request(server).get("/api/products?maxPrice=19.999&inStock=true&limit=5");
+  const ok = await request(server).get(
+    "/api/products?currency=USD&maxPrice=19.999&inStock=true&limit=5",
+  );
   assert.equal(ok.status, 200, ok.text);
   assert.equal(ok.body.limit, 5);
-  const bad = await request(server).get("/api/products?maxPrice=cheap");
-  assert.equal(bad.status, 400);
+  for (const query of ["currency=USD&maxPrice=cheap", "maxPrice=10"]) {
+    assert.equal((await request(server).get(`/api/products?${query}`)).status, 400, query);
+  }
+  assert.equal((await request(server).get("/api/products?q=mug")).status, 200);
 });

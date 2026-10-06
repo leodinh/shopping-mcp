@@ -63,7 +63,7 @@ test("PostgreSQL sync and search lifecycle", async () => {
     await syncConnection(connections[0], pool, connector);
     await syncConnection(connections[1], pool, connector);
     const initial = await searchProducts(
-      { q: "black backpack", merchantId: merchantIds[0], maxPrice: 100 },
+      { q: "black backpack", merchantId: merchantIds[0], currency: "USD", maxPrice: 100 },
       db,
     );
     assert.equal(initial.total, 1);
@@ -107,7 +107,7 @@ test("PostgreSQL sync and search lifecycle", async () => {
       [1e21, 1],
     ]) {
       assert.equal(
-        (await searchProducts({ merchantId: merchantIds[0], maxPrice }, db)).total,
+        (await searchProducts({ merchantId: merchantIds[0], currency: "USD", maxPrice }, db)).total,
         total,
         `maxPrice ${maxPrice}`,
       );

@@ -279,3 +279,31 @@ test("a failed token exchange stores nothing and uses up the attempt", async () 
     { ok: false, reason: "invalid_state" },
   );
 });
+
+test("complete subscribes the uninstall webhook, and a failed subscription does not fail connecting", async () => {
+  const registered: string[] = [];
+  const shop = uniqueShop();
+  const started = await begin(shop);
+  const done = await completeStoreConnection(
+    callback(shop, started.state),
+    started.browserBinding,
+    {
+      db,
+      exchangeCode: grant,
+      registerWebhooks: async (s, accessToken) => void registered.push(`${s} ${accessToken}`),
+    },
+  );
+  assert.ok(done.ok);
+  assert.deepEqual(registered, [`${shop} shpat_test`]);
+
+  const other = uniqueShop();
+  const again = await begin(other);
+  const result = await completeStoreConnection(callback(other, again.state), again.browserBinding, {
+    db,
+    exchangeCode: grant,
+    registerWebhooks: async () => {
+      throw new Error("Shopify unreachable");
+    },
+  });
+  assert.ok(result.ok);
+});

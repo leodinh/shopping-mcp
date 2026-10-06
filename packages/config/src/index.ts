@@ -21,8 +21,29 @@ export function credentialsKey() {
   return requiredEnv("CREDENTIALS_KEY");
 }
 
+// Normal development: http://localhost:3000 (web) and :3001 (API). Cookies are host-scoped and
+// ignore ports, so both share the session with no cookie domain. External MCP and production-like
+// testing point these at sibling HTTPS subdomains and set COOKIE_DOMAIN to their parent domain.
 export function webOrigin() {
-  return process.env.WEB_ORIGIN ?? "http://127.0.0.1:3000";
+  return process.env.WEB_ORIGIN ?? "http://localhost:3000";
+}
+
+export function apiOrigin() {
+  return process.env.API_ORIGIN ?? "http://localhost:3001";
+}
+
+/** Parent domain for cross-subdomain session cookies; unset on localhost. */
+export function cookieDomain() {
+  return process.env.COOKIE_DOMAIN || undefined;
+}
+
+export function betterAuthSecret() {
+  return requiredEnv("BETTER_AUTH_SECRET");
+}
+
+/** Canonical MCP resource URL: the audience every MCP access token must carry. */
+export function mcpResource() {
+  return `${apiOrigin()}/api/mcp`;
 }
 
 export function apiPort() {

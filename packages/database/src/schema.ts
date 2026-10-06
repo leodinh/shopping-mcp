@@ -148,3 +148,6 @@ export type Product = typeof products.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type OAuthAttempt = typeof oauthAttempts.$inferSelect;
 export type SyncRun = typeof syncRuns.$inferSelect;
+
+// Better Auth: users, their sessions and sign-in accounts, and the MCP OAuth server's state.
+export * from "./auth-schema";

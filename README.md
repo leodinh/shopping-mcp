@@ -46,8 +46,11 @@ All variables live in the root `.env`.
 | `SHOPIFY_REDIRECT_URI`   | yes      | OAuth callback, `http://127.0.0.1:3001/api/connections/shopify/callback` locally. Must be allowed in the Shopify app.                  |
 | `SHOPIFY_SCOPES`         | no       | Requested scopes; default `read_products`.                                                                                             |
 | `API_PORT`               | no       | API port; default `3001`.                                                                                                              |
-| `WEB_ORIGIN`             | no       | Web UI origin for CORS and the post-OAuth redirect; default `http://127.0.0.1:3000`.                                                   |
-| `NEXT_PUBLIC_API_ORIGIN` | no       | API origin the web UI calls; default `http://127.0.0.1:3001`.                                                                          |
+| `BETTER_AUTH_SECRET`     | yes      | Signs Better Auth sessions and OAuth state (dashboard and MCP sign-in). Generate separately.                                           |
+| `WEB_ORIGIN`             | no       | Web UI origin (CORS, trusted origin, login/consent pages); default `http://localhost:3000`.                                            |
+| `API_ORIGIN`             | no       | Public API origin: Better Auth issuer (`<origin>/api/auth`) and MCP resource (`<origin>/api/mcp`); default `http://localhost:3001`.    |
+| `COOKIE_DOMAIN`          | no       | Parent domain for cross-subdomain session cookies (e.g. `leodev.online` for `app.` / `api.` siblings); unset on localhost.             |
+| `NEXT_PUBLIC_API_ORIGIN` | no       | API origin the web UI calls; default `http://localhost:3001`.                                                                          |
 
 Generate each secret separately, e.g. `openssl rand -hex 32`. Rotating `SESSION_SECRET` only signs sellers out. Changing `CREDENTIALS_KEY` makes stored Shopify tokens unreadable, and those stores must reconnect. Credentials encrypted before `CREDENTIALS_KEY` existed (with the old `SESSION_SECRET`-derived key) still decrypt and are re-encrypted on their next sync.
 

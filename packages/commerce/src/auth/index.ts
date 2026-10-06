@@ -6,3 +6,4 @@ export {
   destroySession,
   requireSession,
 } from "./session";
+export { getAccount } from "./account";

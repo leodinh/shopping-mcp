@@ -12,13 +12,15 @@
     "test": "node --import tsx --test tests/*.test.ts"
   },
   "dependencies": {
+    "@better-auth/oauth-provider": "^1.7.7",
+    "@shopping-mcp/contracts": "workspace:*",
     "@tailwindcss/postcss": "^4.3.3",
+    "better-auth": "^1.7.7",
     "next": "16.3.4",
     "postcss": "^8.5.28",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "tailwindcss": "^4.3.3",
-    "@shopping-mcp/contracts": "workspace:*"
+    "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
@@ -27,7 +29,7 @@
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.3.4",
     "eslint-config-prettier": "^10.1.8",
-    "typescript": "^5.0.0",
-    "tsx": "^4.0.0"
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
   }
 }

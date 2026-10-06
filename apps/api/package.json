@@ -13,27 +13,32 @@
     "test:integration": "node --import tsx --env-file-if-exists=../../.env --test tests/integration/*.test.ts"
   },
   "dependencies": {
+    "@better-auth/cimd": "^1.7.7",
+    "@better-auth/mcp": "^1.7.7",
+    "@better-auth/oauth-provider": "^1.7.7",
+    "@modelcontextprotocol/server": "^2.0.0",
     "@nestjs/common": "^11.1.6",
     "@nestjs/core": "^11.1.6",
     "@nestjs/platform-express": "^11.1.6",
     "@shopping-mcp/commerce": "workspace:*",
     "@shopping-mcp/config": "workspace:*",
     "@shopping-mcp/contracts": "workspace:*",
-    "@modelcontextprotocol/server": "^2.0.0",
+    "@shopping-mcp/database": "workspace:*",
+    "better-auth": "^1.7.7",
+    "jose": "^6.2.12",
     "mcp-handler": "^2.1.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
-    "zod": "4.5.4",
-    "@shopping-mcp/database": "workspace:*"
+    "zod": "4.5.4"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "typescript": "^5.0.0",
-    "tsx": "^4.0.0",
     "@types/express": "^5.0.0",
-    "supertest": "^7.1.4",
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.0.0",
     "@types/supertest": "^6.0.3",
     "pg": "8.23.0",
-    "@types/pg": "^8.0.0"
+    "supertest": "^7.1.4",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
   }
 }

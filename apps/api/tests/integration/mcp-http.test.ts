@@ -37,6 +37,7 @@ test("agents see the catalog's own search schema: maxPrice is a number", async (
   const tools = new Map(result?.tools?.map((tool) => [tool.name, tool]));
   assert.deepEqual([...tools.keys()].sort(), [
     "compare_products",
+    "get_account",
     "get_checkout",
     "get_product",
     "search_products",

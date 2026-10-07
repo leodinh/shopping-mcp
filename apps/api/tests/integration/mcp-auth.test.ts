@@ -5,7 +5,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { exportJWK, generateKeyPair, SignJWT, type CryptoKey } from "jose";
 import request from "supertest";
-import { database, pool, user } from "@shopping-mcp/database";
+import { database, merchants, pool, user } from "@shopping-mcp/database";
 import { createApi } from "../../src/create-api";
 
 // The API verifies tokens against `${API_ORIGIN}/api/auth/jwks`; serve test keys from there.
@@ -15,6 +15,8 @@ let signingKey: CryptoKey;
 let app: Awaited<ReturnType<typeof createApi>>;
 const alice = { id: randomUUID(), email: `alice-${randomUUID()}@example.test`, name: "Alice" };
 const bob = { id: randomUUID(), email: `bob-${randomUUID()}@example.test`, name: "Bob" };
+const aliceStore = randomUUID();
+const bobStore = randomUUID();
 
 before(async () => {
   const pair = await generateKeyPair("EdDSA", { crv: "Ed25519" });
@@ -29,11 +31,30 @@ before(async () => {
   process.env.API_ORIGIN = origin;
   process.env.AUTH_JWKS_URL = `${origin}/api/auth/jwks`;
   await database().insert(user).values([alice, bob]);
+  await database()
+    .insert(merchants)
+    .values([
+      {
+        id: aliceStore,
+        slug: `alice-${aliceStore}.myshopify.com`,
+        name: "Alice's",
+        websiteUrl: "https://alice.example",
+        userId: alice.id,
+      },
+      {
+        id: bobStore,
+        slug: `bob-${bobStore}.myshopify.com`,
+        name: "Bob's",
+        websiteUrl: "https://bob.example",
+        userId: bob.id,
+      },
+    ]);
   app = await createApi();
 });
 
 after(async () => {
   await app.close();
+  await pool().query("DELETE FROM merchants WHERE id = ANY($1)", [[aliceStore, bobStore]]);
   await pool().query('DELETE FROM "user" WHERE id = ANY($1)', [[alice.id, bob.id]]);
   jwksServer.close();
 });
@@ -91,7 +112,7 @@ test("calling get_account signed out answers 401 with a challenge that starts si
   assert.match(challenge, /scope="account"/);
 });
 
-test("a valid token identifies the user; a userId in the arguments is ignored", async () => {
+test("a valid token identifies the user and their stores; a userId in the arguments is ignored", async () => {
   const response = await getAccount(await token(alice.id), { userId: bob.id });
   assert.equal(response.status, 200);
   assert.deepEqual(result(response).structuredContent.account, {
@@ -99,6 +120,12 @@ test("a valid token identifies the user; a userId in the arguments is ignored", 
     email: alice.email,
     name: alice.name,
   });
+  const stores = result(response).structuredContent.stores as Array<{ id: string; name: string }>;
+  assert.deepEqual(
+    stores.map((store) => store.id),
+    [aliceStore],
+    "only the token's user's stores, never Bob's",
+  );
   assert.deepEqual(result(response).structuredContent.connection, {
     clientId: "test-client",
     scopes: ["openid", "account"],

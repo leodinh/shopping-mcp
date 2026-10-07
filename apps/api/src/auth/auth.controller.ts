@@ -48,6 +48,6 @@ export class AuthController {
     if (!(await disconnectStore(user.id, merchantId))) {
       return res.status(404).json({ error: "Store not found." });
     }
-    res.json({ ok: true });
+    res.status(200).json({ ok: true });
   }
 }

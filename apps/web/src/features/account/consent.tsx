@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { authClient } from "./auth-client";
+import { describeClient, type PublicClient } from "./client-identity";
 
 const SCOPE_LABELS: Record<string, string> = {
   openid: "Know who you are",
@@ -15,10 +16,20 @@ const SCOPE_LABELS: Record<string, string> = {
 /** OAuth consent for an MCP client such as ChatGPT or Claude. */
 export function Consent() {
   const params = useSearchParams();
-  const clientId = params.get("client_id") ?? "an application";
+  const clientId = params.get("client_id") ?? "";
   const scopes = (params.get("scope") ?? "").split(" ").filter(Boolean);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
+  const [client, setClient] = useState(() => describeClient({ client_id: clientId }));
+
+  useEffect(() => {
+    if (!clientId) return;
+    authClient
+      .$fetch<PublicClient>("/oauth2/public-client", { query: { client_id: clientId } })
+      .then(({ data }) => {
+        if (data) setClient(describeClient(data));
+      });
+  }, [clientId]);
 
   async function decide(accept: boolean) {
     setPending(true);
@@ -33,10 +44,36 @@ export function Consent() {
 
   return (
     <section className="mx-auto w-full max-w-xl flex-1 overflow-y-auto px-5 py-10 sm:px-8">
-      <h1 className="text-headline font-bold text-heading">Allow access?</h1>
-      <p className="mt-4 text-intro text-muted">
-        <span className="font-mono text-label break-all text-heading">{clientId}</span> wants to:
+      <div className="flex items-center gap-4">
+        {client.logoUrl ? (
+          // Logos come from any client's own host; next/image would need every host allow-listed.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={client.logoUrl}
+            alt=""
+            width={48}
+            height={48}
+            referrerPolicy="no-referrer"
+            className="size-12 rounded object-contain"
+          />
+        ) : null}
+        <h1 className="text-headline font-bold text-heading break-words">
+          Allow {client.name} access?
+        </h1>
+      </div>
+      <p className="mt-3 text-label text-muted">
+        {client.verifiedHost ? (
+          <>
+            Verified app from{" "}
+            <span className="font-medium text-heading">{client.verifiedHost}</span>
+          </>
+        ) : (
+          <>
+            Unverified app: its name is self-declared. Only continue if you started this connection.
+          </>
+        )}
       </p>
+      <p className="mt-6 text-intro text-muted">It wants to:</p>
       <ul className="mt-6 flex list-disc flex-col gap-2 pl-5">
         {scopes.map((scope) => (
           <li key={scope}>{SCOPE_LABELS[scope] ?? scope}</li>

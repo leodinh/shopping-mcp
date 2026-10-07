@@ -1,14 +1,9 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { eq, inArray, or, sql } from "drizzle-orm";
+import { eq, inArray, or } from "drizzle-orm";
 import { shopifyApiSecret, shopifyRedirectUri } from "@shopping-mcp/config";
-import {
-  database,
-  merchantConnections,
-  merchants,
-  products,
-  type Database,
-} from "@shopping-mcp/database";
+import { database, merchantConnections, merchants, type Database } from "@shopping-mcp/database";
 import { SHOPIFY_API_VERSION } from "../connectors/shopify/token";
+import { disableConnection } from "./disable";
 
 export const WEBHOOK_PATH = "/api/webhooks/shopify";
 
@@ -42,31 +37,17 @@ export async function handleShopifyWebhook(
   if (!shop) return { ok: true };
 
   switch (webhook.topic) {
-    case "app/uninstalled": {
-      // The token is dead: disable the connection and hide its products from search.
-      // Reconnecting re-enables it, and the sync it requests reactivates the products.
-      const [connection] = await db
-        .update(merchantConnections)
-        .set({
-          enabled: false,
-          credentialsEncrypted: null,
-          tokenExpiresAt: null,
-          refreshTokenExpiresAt: null,
-          lastError: "Shopify app uninstalled. Reconnect your store.",
-        })
-        .where(eq(merchantConnections.shopDomain, shop))
-        .returning({ merchantId: merchantConnections.merchantId });
-      if (connection) {
-        await db
-          .update(products)
-          .set({ active: false, updatedAt: sql`now()` })
-          .where(eq(products.merchantId, connection.merchantId));
-      }
+    case "app/uninstalled":
+      // The token is dead. Reconnecting the shop restores the store.
+      await disableConnection(
+        eq(merchantConnections.shopDomain, shop),
+        "Shopify app uninstalled. Reconnect your store.",
+        db,
+      );
       break;
-    }
     case "shop/redact": {
       // Sent 48h after uninstall: delete everything held for the shop (cascades to its
-      // connection, products, sessions, OAuth attempts, and sync runs).
+      // connection, products, and sync runs).
       const owners = db
         .select({ id: merchantConnections.merchantId })
         .from(merchantConnections)

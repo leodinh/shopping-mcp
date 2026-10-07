@@ -2,13 +2,15 @@ import { All, Controller, Post, Req, Res } from "@nestjs/common";
 import type { Request, Response } from "express";
 import { handleShopifyCallback } from "./callback";
 import { handleShopifyConnect } from "./connect";
+import { currentUser } from "../auth/current-user";
 import { sendFetchResponse, toFetchRequest } from "../fetch-adapter";
 
 @Controller()
 export class ShopifyController {
   @Post("api/shopify/connect")
   async connect(@Req() req: Request, @Res() res: Response) {
-    const response = await handleShopifyConnect(await toFetchRequest(req));
+    const user = await currentUser(req.headers);
+    const response = await handleShopifyConnect(await toFetchRequest(req), user?.id ?? null);
     await sendFetchResponse(res, response);
   }
 

@@ -1,1 +1,1 @@
-export { listMerchants, getMerchantStatus } from "./repository";
+export { listMerchants, listStoresForUser, getOwnedStore } from "./repository";

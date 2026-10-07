@@ -1,18 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createHmac } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
+import { listStoresForUser } from "@shopping-mcp/commerce/merchants";
+import { user } from "@shopping-mcp/database";
 import { createTestDatabase } from "@shopping-mcp/database/testing";
-import { getDashboardMerchant } from "../../src/auth/session";
 import { handleShopifyCallback } from "../../src/shopify/callback";
 import { handleShopifyConnect } from "../../src/shopify/connect";
 
-process.env.SESSION_SECRET = "test-session-secret-32-characters-min";
 process.env.CREDENTIALS_KEY = "test-credentials-key-32-characters-min";
 process.env.SHOPIFY_API_KEY = "test-key";
 process.env.SHOPIFY_API_SECRET = "test-secret";
 process.env.SHOPIFY_SCOPES = "read_products";
 process.env.SHOPIFY_REDIRECT_URI = "http://127.0.0.1:3001/api/connections/shopify/callback";
-process.env.WEB_ORIGIN = "http://127.0.0.1:3000";
+process.env.WEB_ORIGIN = "http://localhost:3000";
 
 function signedCallbackQuery(params: Record<string, string>) {
   const message = Object.keys(params)
@@ -23,9 +23,25 @@ function signedCallbackQuery(params: Record<string, string>) {
   return new URLSearchParams({ ...params, hmac }).toString();
 }
 
-test("a browser with a stale session connects a shop and lands signed in on the dashboard", async () => {
+const connectRequest = (shop: string) =>
+  new Request("http://localhost:3001/api/shopify/connect", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ shop }),
+  });
+
+test("connecting a shop requires a signed-in User", async () => {
+  const response = await handleShopifyConnect(connectRequest("ui-shop.myshopify.com"), null);
+  assert.equal(response.status, 401);
+});
+
+test("a signed-in User connects a shop over HTTP and returns to the dashboard owning it", async () => {
   const { db, drop } = await createTestDatabase("shopify_http");
   try {
+    const [alice] = await db
+      .insert(user)
+      .values({ name: "", email: `alice-${randomUUID()}@example.test` })
+      .returning({ id: user.id });
     const deps = {
       db,
       exchangeCode: async () => ({
@@ -36,11 +52,8 @@ test("a browser with a stale session connects a shop and lands signed in on the 
       }),
     };
     const started = await handleShopifyConnect(
-      new Request("http://127.0.0.1:3001/api/shopify/connect", {
-        method: "POST",
-        headers: { cookie: "session=stale.0.bad", "content-type": "application/json" },
-        body: JSON.stringify({ shop: "ui-shop.myshopify.com" }),
-      }),
+      connectRequest("ui-shop.myshopify.com"),
+      alice.id,
       deps,
     );
     assert.equal(started.status, 200);
@@ -59,23 +72,21 @@ test("a browser with a stale session connects a shop and lands signed in on the 
       timestamp: "1710000000",
     });
     const callback = await handleShopifyCallback(
-      new Request(`http://127.0.0.1:3001/api/connections/shopify/callback?${query}`, {
+      new Request(`http://localhost:3001/api/connections/shopify/callback?${query}`, {
         headers: { cookie: binding!.split(";")[0] },
       }),
       deps,
     );
-    assert.equal(callback.status, 200);
-    assert.match(await callback.text(), /http:\/\/127\.0\.0\.1:3000\/seller/);
-    const session = callback.headers.getSetCookie().find((c) => c.startsWith("session="));
-    assert.match(
-      session ?? "",
-      /^session=[^;]+; HttpOnly; Path=\/; Max-Age=2592000; SameSite=Lax$/,
-    );
+    assert.equal(callback.status, 302);
+    assert.equal(callback.headers.get("location"), "http://localhost:3000/seller");
+    // Shopify only authorizes the store; it never signs anyone in.
+    assert.equal(callback.headers.getSetCookie().length, 0);
 
-    const dashboard = await getDashboardMerchant(session!.split(";")[0], db);
-    assert.equal(dashboard?.slug, "ui-shop.myshopify.com");
-    assert.equal(dashboard?.connectorType, "shopify");
-    assert.equal(dashboard?.enabled, true);
+    const stores = await listStoresForUser(alice.id, db);
+    assert.deepEqual(
+      stores.map((store) => store.slug),
+      ["ui-shop.myshopify.com"],
+    );
   } finally {
     await drop();
   }

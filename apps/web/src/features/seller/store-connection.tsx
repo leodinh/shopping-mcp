@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { apiUrl } from "@/lib/api/origin";
 import {
   shopifyConnectResponseSchema,
+  type SellerResponse,
   type SellerStatus,
   type ShopifyConnectRequest,
 } from "@shopping-mcp/contracts";
@@ -17,18 +18,26 @@ function syncedAt(value: string) {
   }).format(new Date(value))} UTC`;
 }
 
+function errorFrom(payload: unknown) {
+  return payload &&
+    typeof payload === "object" &&
+    "error" in payload &&
+    typeof payload.error === "string"
+    ? payload.error
+    : null;
+}
+
+/** The signed-in User's stores: status per store, sync and disconnect, and adding a store. */
 export function StoreConnections() {
-  const [merchant, setMerchant] = useState<SellerStatus | null>(null);
+  const [seller, setSeller] = useState<SellerResponse | null>(null);
   const [pending, setPending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [unavailable, setUnavailable] = useState(false);
-  const connected = merchant?.connectionId ? merchant : null;
 
-  async function loadMerchant() {
+  async function load() {
     try {
-      const payload = await fetchSeller();
-      setMerchant(payload.merchant);
+      setSeller(await fetchSeller());
       setUnavailable(false);
     } catch {
       setUnavailable(true);
@@ -42,8 +51,7 @@ export function StoreConnections() {
     fetchSeller(controller.signal).then(
       (payload) => {
         if (controller.signal.aborted) return;
-        setMerchant(payload.merchant);
-        setUnavailable(false);
+        setSeller(payload);
         setLoading(false);
       },
       () => {
@@ -70,14 +78,10 @@ export function StoreConnections() {
       const payload: unknown = await response.json();
       const parsed = shopifyConnectResponseSchema.safeParse(payload);
       if (!response.ok || !parsed.success) {
-        const error =
-          payload &&
-          typeof payload === "object" &&
-          "error" in payload &&
-          typeof payload.error === "string"
-            ? payload.error
-            : null;
-        setMessage(error || "Could not start Shopify connection. Check the domain and try again.");
+        setMessage(
+          errorFrom(payload) ??
+            "Could not start Shopify connection. Check the domain and try again.",
+        );
         setPending(false);
         return;
       }
@@ -88,17 +92,17 @@ export function StoreConnections() {
     }
   }
 
-  async function postSeller(path: "/api/seller/sync" | "/api/seller/disconnect") {
+  async function act(store: SellerStatus, action: "sync" | "disconnect") {
     setPending(true);
     setMessage("");
     try {
-      const response = await fetch(apiUrl(path), { method: "POST", credentials: "include" });
-      if (!response.ok) {
-        setMessage("Request failed. Try again.");
-        setPending(false);
-        return;
-      }
-      await loadMerchant();
+      const response = await fetch(apiUrl(`/api/seller/stores/${store.id}/${action}`), {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!response.ok)
+        setMessage(errorFrom(await response.json()) ?? "Request failed. Try again.");
+      await load();
     } catch {
       setMessage("Request failed. Try again.");
     } finally {
@@ -106,125 +110,118 @@ export function StoreConnections() {
     }
   }
 
+  const section = "mx-auto w-full max-w-xl flex-1 overflow-y-auto px-5 py-10 sm:px-8";
+
   if (unavailable) {
     return (
-      <section className="mx-auto w-full max-w-xl flex-1 overflow-y-auto px-5 py-10 sm:px-8">
+      <section className={section}>
         <h1 className="text-headline font-bold text-heading">Store status unavailable.</h1>
         <p className="mt-4 text-intro text-muted">The dashboard could not reach the database.</p>
-        <button type="button" className="mt-6 btn" onClick={() => void loadMerchant()}>
+        <button type="button" className="mt-6 btn" onClick={() => void load()}>
           Try again
         </button>
       </section>
     );
   }
 
+  if (loading) {
+    return (
+      <section className={section} aria-busy>
+        <h1 className="text-headline font-bold text-heading">Loading stores</h1>
+      </section>
+    );
+  }
+
+  if (!seller?.user) {
+    return (
+      <section className={section}>
+        <h1 className="text-headline font-bold text-heading">Your stores</h1>
+        <p className="mt-4 text-intro text-muted">Sign in to connect and manage your stores.</p>
+        <a href="/login" className="mt-6 inline-block btn">
+          Sign in
+        </a>
+      </section>
+    );
+  }
+
   return (
-    <section
-      className="mx-auto w-full max-w-xl flex-1 overflow-y-auto px-5 py-10 sm:px-8"
-      aria-label="Your store"
-      aria-busy={pending || loading}
-    >
-      {connected ? (
-        <>
-          <h1 className="text-headline font-bold text-heading">{connected.name}</h1>
-          <dl className="mt-10 flex flex-col gap-5">
+    <section className={section} aria-label="Your stores" aria-busy={pending}>
+      <h1 className="text-headline font-bold text-heading">Your stores</h1>
+      {seller.stores.map((store) => (
+        <article key={store.id} className="mt-10">
+          <h2 className="text-intro font-bold text-heading">{store.name}</h2>
+          <dl className="mt-4 flex flex-col gap-3">
             <div className="flex justify-between gap-4">
               <dt className="text-muted">Connection</dt>
               <dd className="font-medium text-heading">
-                {connected.enabled ? "Shopify connected" : "Disabled"}
+                {store.enabled ? "Shopify connected" : "Disconnected"}
               </dd>
             </div>
             <div className="flex justify-between gap-4">
               <dt className="text-muted">Products</dt>
-              <dd className="font-medium text-heading">{connected.productCount}</dd>
-            </div>
-            <div className="flex justify-between gap-4">
-              <dt className="text-muted">Sync</dt>
-              <dd className="font-medium text-heading">
-                {connected.lastError
-                  ? "Sync failed"
-                  : connected.lastSyncedAt
-                    ? "Synced"
-                    : "Awaiting sync"}
-              </dd>
+              <dd className="font-medium text-heading">{store.productCount}</dd>
             </div>
             <div className="flex justify-between gap-4">
               <dt className="text-muted">Last synced</dt>
               <dd className="text-heading">
-                {connected.lastSyncedAt ? (
-                  <time dateTime={connected.lastSyncedAt}>{syncedAt(connected.lastSyncedAt)}</time>
+                {store.lastSyncedAt ? (
+                  <time dateTime={store.lastSyncedAt}>{syncedAt(store.lastSyncedAt)}</time>
                 ) : (
                   "Not yet"
                 )}
               </dd>
             </div>
           </dl>
-          {connected.lastError ? (
-            <p className="mt-4 text-label text-heading">{connected.lastError}</p>
+          {store.lastError ? (
+            <p className="mt-3 text-label text-heading">{store.lastError}</p>
           ) : null}
-          <div className="mt-8 flex flex-wrap gap-3">
-            <button
-              type="button"
-              className="btn"
-              disabled={pending}
-              onClick={() => void postSeller("/api/seller/sync")}
-            >
-              Retry sync
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={pending}
-              onClick={() => void postSeller("/api/seller/disconnect")}
-            >
-              Disconnect
-            </button>
-          </div>
-        </>
-      ) : (
-        <>
-          <h1 className="text-headline font-bold text-heading">
-            {loading ? "Loading store" : "Add a store"}
-          </h1>
-          <p className="mt-4 text-intro text-muted">
-            You’ll authorize on Shopify next. We keep a session cookie so this dashboard can show
-            that store.
-          </p>
-          {!loading ? (
-            <form onSubmit={connectShopify} className="mt-8 flex flex-col gap-4">
-              <label
-                htmlFor="shop-domain"
-                className="flex flex-col gap-2 text-label font-bold text-heading"
+          {store.enabled ? (
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                type="button"
+                className="btn"
+                disabled={pending}
+                onClick={() => void act(store, "sync")}
               >
-                Shopify domain
-                <input
-                  id="shop-domain"
-                  name="shop"
-                  className="field w-full"
-                  placeholder="your-store.myshopify.com"
-                  autoComplete="off"
-                  spellCheck={false}
-                  disabled={pending}
-                  required
-                />
-              </label>
-              <button className="btn" disabled={pending}>
-                {pending ? "Redirecting to Shopify…" : "Continue to Shopify"}
+                Sync now
               </button>
-            </form>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={pending}
+                onClick={() => void act(store, "disconnect")}
+              >
+                Disconnect
+              </button>
+            </div>
           ) : null}
-          <p className="mt-4 text-label text-muted">
-            See{" "}
-            <a
-              href="/privacy"
-              className="font-medium text-heading underline decoration-heading underline-offset-4"
-            >
-              Privacy
-            </a>{" "}
-            for what the cookie stores.
-          </p>
-        </>
-      )}
+        </article>
+      ))}
+      <h2 className="mt-12 text-intro font-bold text-heading">
+        {seller.stores.length ? "Add or reconnect a store" : "Add a store"}
+      </h2>
+      <p className="mt-3 text-muted">You’ll authorize on Shopify next.</p>
+      <form onSubmit={connectShopify} className="mt-6 flex flex-col gap-4">
+        <label
+          htmlFor="shop-domain"
+          className="flex flex-col gap-2 text-label font-bold text-heading"
+        >
+          Shopify domain
+          <input
+            id="shop-domain"
+            name="shop"
+            className="field w-full"
+            placeholder="your-store.myshopify.com"
+            autoComplete="off"
+            spellCheck={false}
+            disabled={pending}
+            required
+          />
+        </label>
+        <button className="btn" disabled={pending}>
+          {pending ? "Working…" : "Continue to Shopify"}
+        </button>
+      </form>
       <div role="status" aria-live="polite" className="mt-4 text-label font-medium text-heading">
         {message}
       </div>

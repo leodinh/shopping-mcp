@@ -4,7 +4,8 @@
 
 - `/`: shopper-facing home page with an example conversation and the `shopping-mcp.json` download.
 - `/docs`: how to add Shopping MCP to an assistant.
-- `/seller`: merchants connect their Shopify store and see connection state, product count, and sync status, with a sync/retry button. "Disconnect" currently only signs the seller out; the store keeps syncing.
+- `/seller`: signed-in users connect Shopify stores and manage them: connection state, product count, last sync, **Sync now**, and **Disconnect** (stops the store and hides its products). One user can own several stores.
+- `/login`: email magic-link sign-in, shared by the dashboard and MCP clients' OAuth.
 
 This is a development app: auth and data isolation are not ready for public deployment. Product context lives in `PRODUCT.md`; domain terms (Merchant, MerchantConnection, Store connection, …) in `CONTEXT.md`.
 
@@ -20,7 +21,7 @@ Prerequisites: Node.js 22+, pnpm, PostgreSQL 17+, and a Shopify app for connecti
    cp .env.example .env
    ```
 
-3. Fill in `.env` (see [Configuration](#configuration)). At minimum: `DATABASE_URL`, `SESSION_SECRET`, `CREDENTIALS_KEY`, and the `SHOPIFY_*` values.
+3. Fill in `.env` (see [Configuration](#configuration)). At minimum: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `CREDENTIALS_KEY`, and the `SHOPIFY_*` values.
 4. Migrate and start:
 
    ```sh
@@ -30,7 +31,7 @@ Prerequisites: Node.js 22+, pnpm, PostgreSQL 17+, and a Shopify app for connecti
 
 `pnpm dev` starts three processes: the Next.js UI at http://127.0.0.1:3000, the Nest API and MCP server at http://127.0.0.1:3001, and a worker that drains catalog sync every 10s. Start them separately with `pnpm dev:web`, `pnpm dev:api`, and `pnpm dev:worker`.
 
-Then open http://127.0.0.1:3000/seller and connect a Shopify store.
+Then open http://localhost:3000/login, sign in (the magic link is printed in the API log until email delivery lands), and connect a Shopify store from `/seller`.
 
 ## Configuration
 
@@ -39,8 +40,8 @@ All variables live in the root `.env`.
 | Variable                 | Required | Purpose                                                                                                                                |
 | ------------------------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `DATABASE_URL`           | yes      | PostgreSQL URL including the user, e.g. `postgresql://USER@localhost:5432/shopping-mcp`. Add `:PASSWORD` only if the server needs one. |
-| `SESSION_SECRET`         | yes      | Signs seller session cookies. Changing it signs every seller out.                                                                      |
-| `CREDENTIALS_KEY`        | yes      | Encrypts stored Shopify tokens. **Must differ from `SESSION_SECRET` and must not change after use** (see below).                       |
+| `SESSION_SECRET`         | legacy   | Only decrypts Shopify credentials stored before `CREDENTIALS_KEY` existed (re-encrypted on their next sync). Not used for sign-in.     |
+| `CREDENTIALS_KEY`        | yes      | Encrypts stored Shopify tokens. **Must not change after use** (see below).                                                             |
 | `SHOPIFY_API_KEY`        | yes      | Your Shopify app's client ID.                                                                                                          |
 | `SHOPIFY_API_SECRET`     | yes      | Your Shopify app's client secret. Verifies OAuth callbacks (HMAC) and exchanges tokens.                                                |
 | `SHOPIFY_REDIRECT_URI`   | yes      | OAuth callback, `http://127.0.0.1:3001/api/connections/shopify/callback` locally. Must be allowed in the Shopify app.                  |
@@ -52,7 +53,7 @@ All variables live in the root `.env`.
 | `COOKIE_DOMAIN`          | no       | Parent domain for cross-subdomain session cookies (e.g. `leodev.online` for `app.` / `api.` siblings); unset on localhost.             |
 | `NEXT_PUBLIC_API_ORIGIN` | no       | API origin the web UI calls; default `http://localhost:3001`.                                                                          |
 
-Generate each secret separately, e.g. `openssl rand -hex 32`. Rotating `SESSION_SECRET` only signs sellers out. Changing `CREDENTIALS_KEY` makes stored Shopify tokens unreadable, and those stores must reconnect. Credentials encrypted before `CREDENTIALS_KEY` existed (with the old `SESSION_SECRET`-derived key) still decrypt and are re-encrypted on their next sync.
+Generate each secret separately, e.g. `openssl rand -hex 32`. Changing `CREDENTIALS_KEY` makes stored Shopify tokens unreadable, and those stores must reconnect. Credentials encrypted before `CREDENTIALS_KEY` existed (with the old `SESSION_SECRET`-derived key) still decrypt and are re-encrypted on their next sync.
 
 ### Shopify app setup
 
@@ -121,7 +122,7 @@ This is a **pnpm workspace**, not a distributed commerce backend. Business opera
 
 - `packages/database`: Drizzle schema, pool, migrations, and a test-only isolated-schema helper (`@shopping-mcp/database/testing`).
 - `packages/contracts`: browser-safe schemas and JSON types shared by the API, MCP tools, and web client.
-- `packages/commerce`: catalog, merchants, sessions, Store connection (Shopify OAuth), sync, and connectors.
+- `packages/commerce`: catalog, merchants, accounts, Store connection (Shopify OAuth), sync, and connectors.
 - `packages/config`: server-only environment helpers.
 - `apps/api`: Nest HTTP controllers, cookies, OAuth responses, and MCP tools.
 - `apps/worker`: outbox drain loop.
@@ -137,10 +138,10 @@ A MerchantConnection stores the connector type, non-secret configuration, the sh
 
 `@shopping-mcp/commerce/store-connection` owns the Shopify OAuth lifecycle behind two operations:
 
-1. **Begin**: validate the `*.myshopify.com` domain, pick the signed-in Merchant or the one that owns (or will own) the shop, reject a shop owned by another Merchant (`shop_taken`) or a Merchant already bound to another shop (`shop_mismatch`), and store a single-use OAuth attempt tied to the browser by an `oauth_binding` cookie (10 minutes).
-2. **Complete**: verify the callback HMAC, consume the attempt, exchange the code for tokens outside any DB transaction, then store encrypted credentials, request a sync, and create the seller session in one transaction.
+1. **Begin** (signed-in User only): validate the `*.myshopify.com` domain, reject a shop owned by another User (`shop_taken`), and store a single-use OAuth attempt for the User and shop, tied to the browser by an `oauth_binding` cookie (10 minutes). Nothing is created for the shop yet.
+2. **Complete**: verify the callback HMAC, consume the attempt, exchange the code for tokens outside any DB transaction, then in one transaction create the Merchant for the User, or **claim** it if it predates Users, store encrypted credentials, and request a sync. The browser returns to `/seller`; Shopify never signs anyone in.
 
-Both return typed outcomes (`{ ok: false, reason }`); the API maps each reason to an HTTP status. A stale session cookie counts as signed out. A failed token exchange uses up the attempt; the seller starts again.
+Both return typed outcomes (`{ ok: false, reason }`); the API maps each reason to an HTTP status. Connecting while signed out is a 401. A failed token exchange uses up the attempt; the User starts again. **Disconnect** (dashboard) and the `app/uninstalled` webhook share one path: disable the connection, drop its credentials, hide its products.
 
 ### Sync semantics
 
@@ -180,7 +181,7 @@ Do not expose this development app to the public internet without auth. Connecto
 
 Tests live in their owning workspace's `tests/` directory:
 
-- `apps/api/tests`: HTTP basics, session cookies, and the Store connection failure → status table. `integration/`: Shopify connect end to end over HTTP, and JSON-RPC calls to `/api/mcp` plus REST search.
+- `apps/api/tests`: HTTP basics (signed-out dashboard) and the Store connection failure → status table. `integration/`: Shopify connect end to end over HTTP (signed in), MCP OAuth token checks, and JSON-RPC calls to `/api/mcp` plus REST search.
 - `apps/web/tests`: API URL helpers and seller response validation.
 - `apps/worker/tests`: outbox scheduling.
 - `packages/commerce/tests`: catalog helpers, Shopify product mapping, and snapshot validation. `integration/`: Store connection, Shopify token refresh, catalog lifecycle, and the sync outbox against PostgreSQL.

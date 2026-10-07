@@ -15,6 +15,20 @@
       "when": 1791224849711,
       "tag": "0001_naive_ultragirl",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791328239680,
+      "tag": "0002_overconfident_harrier",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791328241101,
+      "tag": "0003_amused_magus",
+      "breakpoints": true
     }
   ]
 }

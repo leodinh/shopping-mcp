@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { and, eq, gt, isNull, or, sql } from "drizzle-orm";
+import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import {
   database,
   merchantConnections,
@@ -7,7 +7,6 @@ import {
   oauthAttempts,
   type Database,
 } from "@shopping-mcp/database";
-import { createSession } from "../auth/session";
 import { encryptCredentials } from "../connectors/shopify/credentials";
 import { enqueueSync } from "../sync/outbox";
 import {
@@ -15,6 +14,7 @@ import {
   type ExchangeCode,
   type ShopifyToken,
 } from "../connectors/shopify/token";
+import { disableConnection } from "./disable";
 import { normalizeShopDomain, shopifyAuthorizeUrl, validShopifyHmac } from "./shopify";
 import { registerShopifyWebhooks } from "./webhooks";
 
@@ -30,44 +30,42 @@ export type StoreConnectionDeps = {
 
 export { handleShopifyWebhook, type ShopifyWebhook } from "./webhooks";
 
-type Conflict = "shop_taken" | "shop_mismatch";
-
 export type BeginStoreConnectionResult =
   | { ok: true; authorizationUrl: string; browserBinding: string; expiresAt: Date }
-  | { ok: false; reason: "invalid_shop" | Conflict };
+  | { ok: false; reason: "invalid_shop" | "shop_taken" };
 
 export type CompleteStoreConnectionResult =
-  | { ok: true; sessionToken: string }
+  | { ok: true; merchantId: string }
   | {
       ok: false;
       reason:
-        "invalid_hmac" | "invalid_shop" | "invalid_state" | "token_exchange_failed" | Conflict;
+        "invalid_hmac" | "invalid_shop" | "invalid_state" | "token_exchange_failed" | "shop_taken";
     };
 
 export type StoreConnectionFailure =
   | Extract<BeginStoreConnectionResult, { ok: false }>["reason"]
   | Extract<CompleteStoreConnectionResult, { ok: false }>["reason"];
 
+/** Thrown inside the completing transaction when another User owns the shop. */
+class ShopTaken extends Error {}
+
 /**
- * Starts a Store connection for `shop`. `currentMerchantId` is the signed-in Merchant, or null
- * to act as whichever Merchant owns (or will own) the shop. The caller must hand
+ * Starts a Store connection for `shop` on behalf of the signed-in User. The caller must hand
  * `browserBinding` back to `completeStoreConnection` from the same browser before `expiresAt`.
  */
 export async function beginStoreConnection(
   shopInput: unknown,
-  currentMerchantId: string | null,
+  userId: string,
   deps: StoreConnectionDeps = {},
 ): Promise<BeginStoreConnectionResult> {
   const db = deps.db ?? database();
   const shop = normalizeShopDomain(shopInput);
   if (!shop) return { ok: false, reason: "invalid_shop" };
-  const merchantId = currentMerchantId ?? (await merchantForShop(shop, db));
-  const conflict = await connectionConflict(shop, merchantId, db);
-  if (conflict) return { ok: false, reason: conflict };
+  if (await ownedByAnotherUser(shop, userId, db)) return { ok: false, reason: "shop_taken" };
   const state = randomBytes(16).toString("hex");
   const browserBinding = randomBytes(16).toString("hex");
   const expiresAt = new Date(Date.now() + ATTEMPT_TTL_MS);
-  await db.insert(oauthAttempts).values({ state, merchantId, shop, browserBinding, expiresAt });
+  await db.insert(oauthAttempts).values({ state, userId, shop, browserBinding, expiresAt });
   return {
     ok: true,
     authorizationUrl: shopifyAuthorizeUrl(shop, state),
@@ -77,8 +75,9 @@ export async function beginStoreConnection(
 }
 
 /**
- * Finishes a Store connection from Shopify's callback query. The OAuth attempt is used up
- * even when the token exchange fails; the Merchant then begins again.
+ * Finishes a Store connection from Shopify's callback query. Only now, with Shopify having proven
+ * the User controls the shop, is its Merchant created or (if unowned) claimed for them. The OAuth
+ * attempt is used up even when the token exchange fails; the User then begins again.
  */
 export async function completeStoreConnection(
   params: URLSearchParams,
@@ -93,10 +92,9 @@ export async function completeStoreConnection(
   const state = params.get("state");
   const code = params.get("code");
   if (!state || !code) return { ok: false, reason: "invalid_state" };
-  const merchantId = await consumeAttempt(state, shop, browserBinding, db);
-  if (!merchantId) return { ok: false, reason: "invalid_state" };
-  const conflict = await connectionConflict(shop, merchantId, db);
-  if (conflict) return { ok: false, reason: conflict };
+  const userId = await consumeAttempt(state, shop, browserBinding, db);
+  if (!userId) return { ok: false, reason: "invalid_state" };
+  if (await ownedByAnotherUser(shop, userId, db)) return { ok: false, reason: "shop_taken" };
 
   let token: ShopifyToken;
   try {
@@ -107,10 +105,11 @@ export async function completeStoreConnection(
   }
 
   try {
-    const sessionToken = await db.transaction(async (tx) => {
+    const merchantId = await db.transaction(async (tx) => {
+      const merchantId = await merchantFor(shop, userId, tx);
       const connectionId = await upsertConnection(merchantId, shop, token, tx);
       await enqueueSync(connectionId, tx);
-      return createSession(merchantId, tx);
+      return merchantId;
     });
     try {
       await (deps.registerWebhooks ?? registerShopifyWebhooks)(shop, token.accessToken);
@@ -118,51 +117,85 @@ export async function completeStoreConnection(
       // Connecting must not fail over this; without it an uninstall just surfaces as a failed sync.
       console.error("Shopify webhook registration failed", error);
     }
-    return { ok: true, sessionToken };
+    return { ok: true, merchantId };
   } catch (error) {
-    // merchant_id conflicts are upserted, so a unique violation here is shop_domain: lost a race.
-    if (isUniqueViolation(error)) return { ok: false, reason: "shop_taken" };
+    // Lost a race: another User claimed or connected the shop while Shopify was answering.
+    if (error instanceof ShopTaken || isUniqueViolation(error)) {
+      return { ok: false, reason: "shop_taken" };
+    }
     throw error;
   }
 }
 
-async function merchantForShop(shop: string, db: Database) {
-  const [byShop] = await db
-    .select({ id: merchantConnections.merchantId })
+/**
+ * Disconnects one of the User's stores: stops syncing it, drops its credentials, and hides its
+ * products. Returns false when the store doesn't exist or belongs to someone else.
+ */
+export async function disconnectStore(
+  userId: string,
+  merchantId: string,
+  db: Database = database(),
+) {
+  const [owned] = await db
+    .select({ id: merchants.id })
+    .from(merchants)
+    .where(and(eq(merchants.id, merchantId), eq(merchants.userId, userId)));
+  if (!owned) return false;
+  await disableConnection(
+    eq(merchantConnections.merchantId, merchantId),
+    "Disconnected. Connect the store again to resume.",
+    db,
+  );
+  return true;
+}
+
+/** The Merchant already holding `shop` (through its connection, else its slug), if any. */
+async function shopOwner(shop: string, db: Database) {
+  const [byConnection] = await db
+    .select({ merchantId: merchants.id, userId: merchants.userId })
     .from(merchantConnections)
+    .innerJoin(merchants, eq(merchants.id, merchantConnections.merchantId))
     .where(eq(merchantConnections.shopDomain, shop))
     .limit(1);
-  if (byShop) return byShop.id;
+  if (byConnection) return byConnection;
   const [bySlug] = await db
-    .select({ id: merchants.id })
+    .select({ merchantId: merchants.id, userId: merchants.userId })
     .from(merchants)
     .where(eq(merchants.slug, shop))
     .limit(1);
-  if (bySlug) return bySlug.id;
-  const [inserted] = await db
-    .insert(merchants)
-    .values({ slug: shop, name: shop.slice(0, shop.indexOf(".")), websiteUrl: `https://${shop}` })
-    .onConflictDoUpdate({ target: merchants.slug, set: { name: sql`excluded.name` } })
-    .returning({ id: merchants.id });
-  return inserted.id;
+  return bySlug ?? null;
 }
 
-async function connectionConflict(
-  shop: string,
-  merchantId: string,
-  db: Database,
-): Promise<Conflict | null> {
-  const rows = await db
-    .select({ merchantId: merchantConnections.merchantId, shop: merchantConnections.shopDomain })
-    .from(merchantConnections)
-    .where(
-      or(eq(merchantConnections.shopDomain, shop), eq(merchantConnections.merchantId, merchantId)),
-    );
-  for (const row of rows) {
-    if (row.merchantId !== merchantId) return "shop_taken";
-    if (row.shop && row.shop !== shop) return "shop_mismatch";
+async function ownedByAnotherUser(shop: string, userId: string, db: Database) {
+  const owner = await shopOwner(shop, db);
+  return owner?.userId != null && owner.userId !== userId;
+}
+
+/** Claims the shop's unowned Merchant for `userId`, or creates one owned by them. */
+async function merchantFor(shop: string, userId: string, db: Database) {
+  const owner = await shopOwner(shop, db);
+  if (owner) {
+    if (owner.userId === userId) return owner.merchantId;
+    const [claimed] = await db
+      .update(merchants)
+      .set({ userId })
+      .where(and(eq(merchants.id, owner.merchantId), isNull(merchants.userId)))
+      .returning({ id: merchants.id });
+    if (!claimed) throw new ShopTaken();
+    return claimed.id;
   }
-  return null;
+  const [created] = await db
+    .insert(merchants)
+    .values({
+      slug: shop,
+      name: shop.slice(0, shop.indexOf(".")),
+      websiteUrl: `https://${shop}`,
+      userId,
+    })
+    .onConflictDoNothing({ target: merchants.slug })
+    .returning({ id: merchants.id });
+  if (!created) throw new ShopTaken();
+  return created.id;
 }
 
 async function consumeAttempt(state: string, shop: string, browserBinding: string, db: Database) {
@@ -178,8 +211,8 @@ async function consumeAttempt(state: string, shop: string, browserBinding: strin
         gt(oauthAttempts.expiresAt, new Date()),
       ),
     )
-    .returning({ merchantId: oauthAttempts.merchantId });
-  return row?.merchantId ?? null;
+    .returning({ userId: oauthAttempts.userId });
+  return row?.userId ?? null;
 }
 
 async function upsertConnection(

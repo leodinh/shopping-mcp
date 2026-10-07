@@ -36,8 +36,17 @@ export async function listMerchants(slug?: string, db: Database = database()) {
   return rows.map(toSellerStatus);
 }
 
-export async function getMerchantStatus(merchantId: string, db?: Database) {
-  const rows = await statusQuery(db ?? database()).where(eq(merchants.id, merchantId));
+/** The stores a signed-in User owns, for their dashboard. */
+export async function listStoresForUser(userId: string, db: Database = database()) {
+  const rows = await statusQuery(db).where(eq(merchants.userId, userId)).orderBy(merchants.name);
+  return rows.map(toSellerStatus);
+}
+
+/** One of the User's stores, or null when it doesn't exist or belongs to someone else. */
+export async function getOwnedStore(userId: string, merchantId: string, db: Database = database()) {
+  const rows = await statusQuery(db).where(
+    and(eq(merchants.id, merchantId), eq(merchants.userId, userId)),
+  );
   return rows[0] ? toSellerStatus(rows[0]) : null;
 }
 

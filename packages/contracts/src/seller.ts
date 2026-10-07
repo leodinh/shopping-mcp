@@ -11,6 +11,10 @@ export const sellerStatusSchema = z.object({
   lastError: z.string().nullable(),
   productCount: z.number().int().nonnegative(),
 });
-export const sellerResponseSchema = z.object({ merchant: sellerStatusSchema.nullable() });
+/** The signed-in User and the stores they own; `user` is null when signed out. */
+export const sellerResponseSchema = z.object({
+  user: z.object({ id: z.uuid(), email: z.string() }).nullable(),
+  stores: z.array(sellerStatusSchema),
+});
 export type SellerStatus = z.infer<typeof sellerStatusSchema>;
 export type SellerResponse = z.infer<typeof sellerResponseSchema>;

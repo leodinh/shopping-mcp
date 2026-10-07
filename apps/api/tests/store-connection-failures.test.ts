@@ -9,7 +9,6 @@ test("each Store connection failure maps to an HTTP status the seller UI can sho
     invalid_hmac: 403,
     invalid_state: 403,
     shop_taken: 409,
-    shop_mismatch: 409,
     token_exchange_failed: 502,
   } satisfies Record<StoreConnectionFailure, number>;
   for (const [reason, status] of Object.entries(expected)) {

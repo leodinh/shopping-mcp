@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import { user } from "./auth-schema";
 import {
   boolean,
   check,
@@ -23,13 +24,20 @@ const timestamptz = (name: string) => timestamp(name, { withTimezone: true, mode
 
 export type ConnectionConfig = { shop?: string };
 
-export const merchants = pgTable("merchants", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  slug: text("slug").notNull().unique(),
-  name: text("name").notNull(),
-  websiteUrl: text("website_url").notNull(),
-  createdAt: timestamptz("created_at").notNull().defaultNow(),
-});
+export const merchants = pgTable(
+  "merchants",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    slug: text("slug").notNull().unique(),
+    name: text("name").notNull(),
+    websiteUrl: text("website_url").notNull(),
+    // The User who owns this store; null for stores connected before sign-in existed, claimed
+    // when their owner reconnects the shop.
+    userId: uuid("user_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamptz("created_at").notNull().defaultNow(),
+  },
+  (table) => [index("merchants_user_idx").on(table.userId)],
+);
 
 export const merchantConnections = pgTable(
   "merchant_connections",
@@ -98,21 +106,14 @@ export const products = pgTable(
   ],
 );
 
-export const sessions = pgTable("sessions", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  merchantId: uuid("merchant_id")
-    .notNull()
-    .references(() => merchants.id, { onDelete: "cascade" }),
-  expiresAt: timestamptz("expires_at").notNull(),
-  createdAt: timestamptz("created_at").notNull().defaultNow(),
-});
-
 export const oauthAttempts = pgTable("oauth_attempts", {
   id: uuid("id").primaryKey().defaultRandom(),
   state: text("state").notNull().unique(),
-  merchantId: uuid("merchant_id")
+  // The signed-in User connecting the shop. The Merchant is only claimed or created once
+  // Shopify proves control of the shop, so nobody can reserve someone else's shop.
+  userId: uuid("user_id")
     .notNull()
-    .references(() => merchants.id, { onDelete: "cascade" }),
+    .references(() => user.id, { onDelete: "cascade" }),
   shop: text("shop").notNull(),
   browserBinding: text("browser_binding").notNull(),
   expiresAt: timestamptz("expires_at").notNull(),
@@ -145,7 +146,6 @@ export const syncRuns = pgTable(
 export type Merchant = typeof merchants.$inferSelect;
 export type MerchantConnection = typeof merchantConnections.$inferSelect;
 export type Product = typeof products.$inferSelect;
-export type Session = typeof sessions.$inferSelect;
 export type OAuthAttempt = typeof oauthAttempts.$inferSelect;
 export type SyncRun = typeof syncRuns.$inferSelect;
 

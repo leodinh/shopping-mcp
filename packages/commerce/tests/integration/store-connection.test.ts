@@ -2,19 +2,21 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { createHmac, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import { requireSession } from "@shopping-mcp/commerce/auth";
 import { decryptCredentials } from "@shopping-mcp/commerce/connectors/shopify";
+import { getOwnedStore, listStoresForUser } from "@shopping-mcp/commerce/merchants";
 import {
   beginStoreConnection,
   completeStoreConnection,
+  disconnectStore,
   type ExchangeCode,
 } from "@shopping-mcp/commerce/store-connection";
 import {
   merchantConnections,
   merchants,
   oauthAttempts,
-  sessions,
+  products,
   syncRuns,
+  user,
   type Database,
 } from "@shopping-mcp/database";
 import { createTestDatabase } from "@shopping-mcp/database/testing";
@@ -44,6 +46,14 @@ function uniqueShop() {
   return `shop-${randomUUID().slice(0, 8)}.myshopify.com`;
 }
 
+async function newUser() {
+  const [row] = await db
+    .insert(user)
+    .values({ name: "", email: `u-${randomUUID()}@example.test` })
+    .returning({ id: user.id });
+  return row.id;
+}
+
 function signed(params: Record<string, string>, secret = "test-secret") {
   const message = Object.keys(params)
     .sort()
@@ -53,8 +63,8 @@ function signed(params: Record<string, string>, secret = "test-secret") {
   return new URLSearchParams({ ...params, hmac });
 }
 
-async function begin(shop: string, merchantId: string | null = null) {
-  const result = await beginStoreConnection(shop, merchantId, { db });
+async function begin(shop: string, userId: string) {
+  const result = await beginStoreConnection(shop, userId, { db });
   assert.ok(result.ok, `begin failed: ${JSON.stringify(result)}`);
   const state = new URL(result.authorizationUrl).searchParams.get("state")!;
   return { ...result, state };
@@ -64,16 +74,8 @@ function callback(shop: string, state: string, code = "auth-code") {
   return signed({ shop, code, state, timestamp: "1710000000" });
 }
 
-async function newMerchant() {
-  const [row] = await db
-    .insert(merchants)
-    .values({ slug: `m-${randomUUID()}`, name: "Northline", websiteUrl: "https://n.example" })
-    .returning({ id: merchants.id });
-  return row.id;
-}
-
-async function connect(shop: string, merchantId: string | null = null) {
-  const started = await begin(shop, merchantId);
+async function connect(shop: string, userId: string) {
+  const started = await begin(shop, userId);
   const done = await completeStoreConnection(
     callback(shop, started.state),
     started.browserBinding,
@@ -83,12 +85,18 @@ async function connect(shop: string, merchantId: string | null = null) {
     },
   );
   assert.ok(done.ok, `complete failed: ${JSON.stringify(done)}`);
-  return done.sessionToken;
+  return done.merchantId;
 }
 
-test("anonymous connect creates the Merchant, stores credentials, requests a sync, and signs in", async () => {
+async function ownerOf(merchantId: string) {
+  const [row] = await db.select().from(merchants).where(eq(merchants.id, merchantId));
+  return row.userId;
+}
+
+test("a signed-in User connects a shop: they own the new Merchant, credentials are stored, a sync is requested", async () => {
+  const alice = await newUser();
   const shop = uniqueShop();
-  const started = await begin(` https://${shop.toUpperCase()}/admin `);
+  const started = await begin(` https://${shop.toUpperCase()}/admin `, alice);
   assert.equal(
     started.authorizationUrl,
     `https://${shop}/admin/oauth/authorize?client_id=test-key&scope=read_products&redirect_uri=http%3A%2F%2F127.0.0.1%3A3001%2Fapi%2Fconnections%2Fshopify%2Fcallback&state=${started.state}`,
@@ -96,6 +104,8 @@ test("anonymous connect creates the Merchant, stores credentials, requests a syn
   assert.match(started.browserBinding, /^[0-9a-f]{32}$/);
   const ttl = started.expiresAt.getTime() - Date.now();
   assert.ok(ttl > 9 * 60_000 && ttl <= 10 * 60_000);
+  // Nothing is created for the shop until Shopify proves control of it.
+  assert.equal((await db.select().from(merchants).where(eq(merchants.slug, shop))).length, 0);
 
   const exchanged: string[] = [];
   const done = await completeStoreConnection(
@@ -108,16 +118,13 @@ test("anonymous connect creates the Merchant, stores credentials, requests a syn
   );
   assert.ok(done.ok);
   assert.deepEqual(exchanged, [`${shop} auth-code`]);
+  assert.equal(await ownerOf(done.merchantId), alice);
 
-  const merchantId = await requireSession(done.sessionToken, db);
-  const [merchant] = await db.select().from(merchants).where(eq(merchants.id, merchantId));
-  assert.equal(merchant.slug, shop);
   const [connection] = await db
     .select()
     .from(merchantConnections)
-    .where(eq(merchantConnections.merchantId, merchantId));
+    .where(eq(merchantConnections.merchantId, done.merchantId));
   assert.equal(connection.shopDomain, shop);
-  assert.equal(connection.scopes, "read_products");
   assert.deepEqual(decryptCredentials(connection.credentialsEncrypted!), {
     accessToken: "shpat_test",
     refreshToken: "shprt_test",
@@ -140,6 +147,7 @@ test("anonymous connect creates the Merchant, stores credentials, requests a syn
 });
 
 test("begin rejects anything that is not a *.myshopify.com domain", async () => {
+  const alice = await newUser();
   for (const shop of [
     "",
     "example.com",
@@ -149,7 +157,7 @@ test("begin rejects anything that is not a *.myshopify.com domain", async () => 
     123,
     null,
   ]) {
-    assert.deepEqual(await beginStoreConnection(shop, null, { db }), {
+    assert.deepEqual(await beginStoreConnection(shop, alice, { db }), {
       ok: false,
       reason: "invalid_shop",
     });
@@ -158,7 +166,7 @@ test("begin rejects anything that is not a *.myshopify.com domain", async () => 
 
 test("complete rejects a tampered HMAC, a stolen browser binding, and an expired attempt", async () => {
   const shop = uniqueShop();
-  const started = await begin(shop);
+  const started = await begin(shop, await newUser());
   const deps = { db, exchangeCode: mustNotExchange };
 
   const tampered = callback(shop, started.state);
@@ -188,63 +196,82 @@ test("complete rejects a tampered HMAC, a stolen browser binding, and an expired
   );
 });
 
-test("a shop belongs to one Merchant: begin, complete, and a lost race all report shop_taken", async () => {
+test("another User's shop is refused at begin, at complete, and when they win a race", async () => {
+  const alice = await newUser();
+  const mallory = await newUser();
   const shop = uniqueShop();
-  const owner = await newMerchant();
-  const rival = await newMerchant();
 
-  const rivalStarted = await begin(shop, rival);
-  await connect(shop, owner);
-
-  assert.deepEqual(await beginStoreConnection(shop, rival, { db }), {
+  const malloryStarted = await begin(shop, mallory);
+  await connect(shop, alice);
+  assert.deepEqual(await beginStoreConnection(shop, mallory, { db }), {
     ok: false,
     reason: "shop_taken",
   });
   assert.deepEqual(
-    await completeStoreConnection(callback(shop, rivalStarted.state), rivalStarted.browserBinding, {
-      db,
-      exchangeCode: mustNotExchange,
-    }),
+    await completeStoreConnection(
+      callback(shop, malloryStarted.state),
+      malloryStarted.browserBinding,
+      {
+        db,
+        exchangeCode: mustNotExchange,
+      },
+    ),
     { ok: false, reason: "shop_taken" },
   );
 
   const raced = uniqueShop();
-  const slow = await begin(raced, rival);
+  const slow = await begin(raced, mallory);
   const result = await completeStoreConnection(callback(raced, slow.state), slow.browserBinding, {
     db,
-    // The owner finishes connecting the same shop while Shopify is still answering the rival.
+    // Alice finishes connecting the same shop while Shopify is still answering Mallory.
     exchangeCode: async (s, code) => {
-      await connect(raced, await newMerchant());
+      await connect(raced, alice);
       return grant(s, code);
     },
   });
   assert.deepEqual(result, { ok: false, reason: "shop_taken" });
 });
 
-test("a Merchant never switches shops, but can reconnect its own", async () => {
-  const merchantId = await newMerchant();
-  const shop = uniqueShop();
-  await connect(shop, merchantId);
-
-  assert.deepEqual(await beginStoreConnection(uniqueShop(), merchantId, { db }), {
-    ok: false,
-    reason: "shop_mismatch",
-  });
-  await connect(shop, merchantId);
+test("one User can own several stores, and reconnecting a store keeps the same Merchant", async () => {
+  const alice = await newUser();
+  const first = await connect(uniqueShop(), alice);
+  const secondShop = uniqueShop();
+  const second = await connect(secondShop, alice);
+  assert.notEqual(first, second);
+  assert.equal(await connect(secondShop, alice), second);
+  const stores = await listStoresForUser(alice, db);
+  assert.deepEqual(stores.map((store) => store.id).sort(), [first, second].sort());
+  assert.equal((await getOwnedStore(alice, first, db))?.id, first);
+  const bob = await newUser();
+  assert.equal(await getOwnedStore(bob, first, db), null);
+  assert.deepEqual(await listStoresForUser(bob, db), []);
 });
 
-test("without a signed-in Merchant, begin acts for the Merchant that already owns the shop", async () => {
-  const merchantId = await newMerchant();
+test("a store connected before sign-in existed is claimed by whoever reconnects its shop", async () => {
   const shop = uniqueShop();
-  await connect(shop, merchantId);
+  const [legacy] = await db
+    .insert(merchants)
+    .values({ slug: shop, name: "Legacy", websiteUrl: `https://${shop}` })
+    .returning({ id: merchants.id });
+  await db.insert(merchantConnections).values({
+    merchantId: legacy.id,
+    connectorType: "shopify",
+    config: { shop },
+    shopDomain: shop,
+  });
 
-  const sessionToken = await connect(shop, null);
-  assert.equal(await requireSession(sessionToken, db), merchantId);
+  const alice = await newUser();
+  assert.equal(await connect(shop, alice), legacy.id);
+  assert.equal(await ownerOf(legacy.id), alice);
+  assert.deepEqual(await beginStoreConnection(shop, await newUser(), { db }), {
+    ok: false,
+    reason: "shop_taken",
+  });
 });
 
 test("a failed token exchange stores nothing and uses up the attempt", async () => {
   const shop = uniqueShop();
-  const started = await begin(shop);
+  const started = await begin(shop, await newUser());
   const deps = {
     db,
     exchangeCode: async () => {
@@ -263,17 +290,7 @@ test("a failed token exchange stores nothing and uses up the attempt", async () 
     .from(oauthAttempts)
     .where(eq(oauthAttempts.state, started.state));
   assert.ok(attempt.consumedAt);
-  const connections = await db
-    .select()
-    .from(merchantConnections)
-    .where(eq(merchantConnections.shopDomain, shop));
-  assert.equal(connections.length, 0);
-  const signedIn = await db
-    .select()
-    .from(sessions)
-    .where(eq(sessions.merchantId, attempt.merchantId));
-  assert.equal(signedIn.length, 0);
-
+  assert.equal((await db.select().from(merchants).where(eq(merchants.slug, shop))).length, 0);
   assert.deepEqual(
     await completeStoreConnection(callback(shop, started.state), started.browserBinding, deps),
     { ok: false, reason: "invalid_state" },
@@ -281,9 +298,10 @@ test("a failed token exchange stores nothing and uses up the attempt", async () 
 });
 
 test("complete subscribes the uninstall webhook, and a failed subscription does not fail connecting", async () => {
+  const alice = await newUser();
   const registered: string[] = [];
   const shop = uniqueShop();
-  const started = await begin(shop);
+  const started = await begin(shop, alice);
   const done = await completeStoreConnection(
     callback(shop, started.state),
     started.browserBinding,
@@ -297,7 +315,7 @@ test("complete subscribes the uninstall webhook, and a failed subscription does 
   assert.deepEqual(registered, [`${shop} shpat_test`]);
 
   const other = uniqueShop();
-  const again = await begin(other);
+  const again = await begin(other, alice);
   const result = await completeStoreConnection(callback(other, again.state), again.browserBinding, {
     db,
     exchangeCode: grant,
@@ -306,4 +324,40 @@ test("complete subscribes the uninstall webhook, and a failed subscription does 
     },
   });
   assert.ok(result.ok);
+});
+
+test("only the owner can disconnect a store; disconnecting stops it and hides its products", async () => {
+  const alice = await newUser();
+  const shop = uniqueShop();
+  const merchantId = await connect(shop, alice);
+  await db.insert(products).values({
+    merchantId,
+    externalId: "mug",
+    name: "Stone mug",
+    priceMinor: 1200,
+    currency: "USD",
+    inventory: 3,
+    productUrl: `https://${shop}/products/mug`,
+  });
+
+  assert.equal(await disconnectStore(await newUser(), merchantId, db), false);
+  const connectionOf = async () =>
+    (
+      await db
+        .select()
+        .from(merchantConnections)
+        .where(eq(merchantConnections.merchantId, merchantId))
+    )[0];
+  assert.equal((await connectionOf()).enabled, true);
+
+  assert.equal(await disconnectStore(alice, merchantId, db), true);
+  const connection = await connectionOf();
+  assert.equal(connection.enabled, false);
+  assert.equal(connection.credentialsEncrypted, null);
+  const [product] = await db.select().from(products).where(eq(products.merchantId, merchantId));
+  assert.equal(product.active, false);
+
+  // Reconnecting restores it.
+  await connect(shop, alice);
+  assert.equal((await connectionOf()).enabled, true);
 });

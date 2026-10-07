@@ -3,8 +3,6 @@ import {
   type StoreConnectionDeps,
   type StoreConnectionFailure,
 } from "@shopping-mcp/commerce/store-connection";
-import { database } from "@shopping-mcp/database";
-import { currentMerchantId } from "../auth/session";
 import { shopifyConnectRequestSchema, type ShopifyConnectResponse } from "@shopping-mcp/contracts";
 
 const failures: Record<StoreConnectionFailure, [status: number, error: string]> = {
@@ -12,7 +10,6 @@ const failures: Record<StoreConnectionFailure, [status: number, error: string]> 
   invalid_hmac: [403, "Invalid HMAC"],
   invalid_state: [403, "Invalid state"],
   shop_taken: [409, "Shop already connected"],
-  shop_mismatch: [409, "Your store is already connected to a different shop"],
   token_exchange_failed: [502, "Shopify did not grant access. Try connecting again."],
 };
 
@@ -21,13 +18,19 @@ export function storeConnectionFailure(reason: StoreConnectionFailure) {
   return Response.json({ error }, { status });
 }
 
-export async function handleShopifyConnect(request: Request, deps: StoreConnectionDeps = {}) {
+/** Begins connecting a Shopify store for the signed-in User (null when signed out). */
+export async function handleShopifyConnect(
+  request: Request,
+  userId: string | null,
+  deps: StoreConnectionDeps = {},
+) {
+  if (!userId) {
+    return Response.json({ error: "Sign in to connect a store." }, { status: 401 });
+  }
   try {
-    const db = deps.db ?? database();
     const body = shopifyConnectRequestSchema.safeParse(await request.json().catch(() => ({})));
     if (!body.success) return storeConnectionFailure("invalid_shop");
-    const merchantId = await currentMerchantId(request.headers.get("cookie"), db);
-    const result = await beginStoreConnection(body.data.shop, merchantId, { ...deps, db });
+    const result = await beginStoreConnection(body.data.shop, userId, deps);
     if (!result.ok) return storeConnectionFailure(result.reason);
     const response = Response.json({
       authorizationUrl: result.authorizationUrl,

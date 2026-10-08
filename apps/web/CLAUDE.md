@@ -1,6 +1,6 @@
 # Frontend rules (apps/web)
 
-Next.js 16 App Router, React 19, Tailwind CSS v4 (CSS-first), Better Auth's React client. Before using a Next.js or Better Auth API you haven't used here, check current docs (context7): Next 16 differs from older versions.
+Next.js 16 App Router, React 19, Tailwind CSS v4 (CSS-first), Better Auth's React client.
 
 Read first: `DESIGN.md` (visual system, its named rules are binding), `../../PRODUCT.md` (who the product is for), `../../CONTEXT.md` (domain words; use them in UI copy).
 

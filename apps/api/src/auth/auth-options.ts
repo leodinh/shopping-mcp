@@ -7,6 +7,7 @@ import {
   apiOrigin,
   betterAuthSecret,
   cookieDomain,
+  googleOAuth,
   mcpResource,
   webOrigin,
 } from "@shopping-mcp/config";
@@ -20,11 +21,19 @@ export const ACCOUNT_SCOPE = "account";
  * schema from the same plugin list without loading our database client.
  */
 export function authOptions() {
+  const google = googleOAuth();
   return {
     baseURL: apiOrigin(),
     basePath: "/api/auth",
     secret: betterAuthSecret(),
     trustedOrigins: [webOrigin()],
+    // Redirect URI to register with Google: <API_ORIGIN>/api/auth/callback/google
+    socialProviders: google ? { google: { ...google, prompt: "select_account" } } : {},
+    account: {
+      // One person, one User: Google sign-in for an email that already signed in by magic link
+      // joins that User (Google verifies the address) instead of creating a second one.
+      accountLinking: { enabled: true, trustedProviders: ["google"] },
+    },
     advanced: {
       // Sibling subdomains (app.*, api.*) share the session cookie via their parent domain.
       crossSubDomainCookies: { enabled: cookieDomain() !== undefined, domain: cookieDomain() },

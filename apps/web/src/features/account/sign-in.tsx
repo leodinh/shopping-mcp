@@ -48,11 +48,33 @@ export function SignIn() {
     );
   }
 
+  async function continueWithGoogle() {
+    setPending(true);
+    setMessage("");
+    // Google returns here (or to /seller); an MCP client's authorization then resumes as above.
+    const { error } = await authClient.signIn.social({
+      provider: "google",
+      callbackURL: fromOAuth() ? window.location.href : `${window.location.origin}/seller`,
+    });
+    if (error) {
+      setPending(false);
+      setMessage("Google sign-in is unavailable. Use an email link instead.");
+    }
+  }
+
   return (
     <section className="mx-auto w-full max-w-xl flex-1 overflow-y-auto px-5 py-10 sm:px-8">
       <h1 className="text-headline font-bold text-heading">Sign in</h1>
-      <p className="mt-4 text-intro text-muted">We’ll email you a link. No password needed.</p>
-      <form onSubmit={sendLink} className="mt-8 flex flex-col gap-4">
+      <button
+        type="button"
+        className="mt-8 w-full btn-secondary"
+        disabled={pending}
+        onClick={() => void continueWithGoogle()}
+      >
+        Continue with Google
+      </button>
+      <p className="mt-6 text-center text-label text-muted">or get a link by email</p>
+      <form onSubmit={sendLink} className="mt-4 flex flex-col gap-4">
         <label htmlFor="email" className="flex flex-col gap-2 text-label font-bold text-heading">
           Email
           <input

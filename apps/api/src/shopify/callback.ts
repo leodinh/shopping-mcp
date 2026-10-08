@@ -2,7 +2,7 @@ import {
   completeStoreConnection,
   type StoreConnectionDeps,
 } from "@shopping-mcp/commerce/store-connection";
-import { sellerDashboardUrl } from "@shopping-mcp/config";
+import { profileUrl } from "@shopping-mcp/config";
 import { storeConnectionFailure } from "./connect";
 
 export async function handleShopifyCallback(request: Request, deps: StoreConnectionDeps = {}) {
@@ -15,7 +15,7 @@ export async function handleShopifyCallback(request: Request, deps: StoreConnect
     // Shopify only authorized the store; the User is already signed in through Better Auth.
     return new Response(null, {
       status: 302,
-      headers: { Location: sellerDashboardUrl(), "Cache-Control": "no-store" },
+      headers: { Location: profileUrl(), "Cache-Control": "no-store" },
     });
   } catch (error) {
     console.error("Shopify callback failed", error);

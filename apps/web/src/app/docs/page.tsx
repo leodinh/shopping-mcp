@@ -8,13 +8,17 @@ export const metadata = {
 export default function Docs() {
   return (
     <main className="mx-auto w-full max-w-xl flex-1 overflow-y-auto px-5 pt-10 pb-16 sm:px-8">
-      <h1 className="text-headline font-bold text-heading">Add Shopping MCP to your assistant.</h1>
+      <h1 className="caps text-headline font-bold text-heading">
+        Add Shopping MCP to your assistant.
+      </h1>
       <p className="mt-4 text-intro text-muted">
         Download the config, add it as a custom MCP server, then ask your assistant to search and
         compare products across connected stores.
       </p>
-      <ol className="mt-8 list-decimal space-y-3 pl-5 text-base text-heading">
-        <li>Download <span className="font-mono text-label">shopping-mcp.json</span>.</li>
+      <ol className="mt-8 list-decimal space-y-3 pl-6 text-base text-heading marker:text-muted">
+        <li>
+          Download <span className="font-mono text-label">shopping-mcp.json</span>.
+        </li>
         <li>Add it to your assistant as a custom MCP server.</li>
         <li>Ask for products — for example, a backpack for commuting.</li>
       </ol>
@@ -24,7 +28,10 @@ export default function Docs() {
       <p className="mt-6 font-mono text-label text-muted">shopping-mcp.json</p>
       <p className="mt-8 text-base text-muted">
         Store owners:{" "}
-        <Link href="/seller" className="font-medium text-heading underline decoration-heading underline-offset-4">
+        <Link
+          href="/profile"
+          className="font-medium text-heading underline decoration-heading underline-offset-4"
+        >
           connect your Shopify store
         </Link>{" "}
         so assistants can find your products.

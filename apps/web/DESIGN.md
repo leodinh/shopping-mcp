@@ -1,222 +1,223 @@
 ---
 name: Shopping with Agent
-description: Specimen field on warm paper — a chat that compares products, then downloads shopping-mcp.json.
+description: Itemized receipt. One monospace face on white, black ink, thin black rules.
 colors:
-  paper: "#f4f3ef"
-  ink: "#1a1a1a"
-  ink-hover: "#333333"
-  quiet: "#5c5b56"
-  wash: "#e7e5df"
-  well: "#ffffff"
+  paper: "#ffffff"
+  ink: "#000000"
+  ink-hover: "#262626"
+  muted: "#666666"
+  wash: "#f4f4f4"
 typography:
   headline:
-    fontFamily: "Schibsted Grotesk, ui-sans-serif, sans-serif"
-    fontSize: "1.75rem"
+    fontFamily: "IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, monospace"
+    fontSize: "1.125rem"
     fontWeight: 700
-    lineHeight: 1.15
-    letterSpacing: "-0.02em"
-  title:
-    fontFamily: "Schibsted Grotesk, ui-sans-serif, sans-serif"
-    fontSize: "1rem"
-    fontWeight: 500
-    lineHeight: 1.4
-    letterSpacing: "normal"
-  intro:
-    fontFamily: "Schibsted Grotesk, ui-sans-serif, sans-serif"
-    fontSize: "1.0625rem"
-    fontWeight: 400
-    lineHeight: 1.6
-    letterSpacing: "normal"
+    lineHeight: 1.3
+    letterSpacing: "0.06em"
   body:
-    fontFamily: "Schibsted Grotesk, ui-sans-serif, sans-serif"
-    fontSize: "1rem"
+    fontFamily: "IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, monospace"
+    fontSize: "0.9375rem"
     fontWeight: 400
     lineHeight: 1.6
-    letterSpacing: "normal"
+    fontFeature: "\"tnum\""
+  intro:
+    fontFamily: "IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, monospace"
+    fontSize: "0.9375rem"
+    fontWeight: 400
+    lineHeight: 1.7
   label:
-    fontFamily: "Schibsted Grotesk, ui-sans-serif, sans-serif"
+    fontFamily: "IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, monospace"
+    fontSize: "0.75rem"
+    fontWeight: 500
+    lineHeight: 1.45
+    letterSpacing: "0.06em"
+  wordmark:
+    fontFamily: "IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, monospace"
     fontSize: "0.8125rem"
-    fontWeight: 400
-    lineHeight: 1.4
-    letterSpacing: "normal"
-  mono:
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
-    fontSize: "0.8125rem"
-    fontWeight: 400
-    lineHeight: 1.4
-    letterSpacing: "normal"
+    fontWeight: 600
+    letterSpacing: "0.06em"
 rounded:
-  none: "0"
+  none: "0px"
 spacing:
-  page-x: "1.25rem"
-  page-x-sm: "2rem"
-  thread-gap: "1.5rem"
-  compare-gap: "2rem"
-  control: "2.75rem"
-  content-max: "36rem"
-  thread-max: "48rem"
+  gutter: "20px"
+  gutter-wide: "32px"
+  slip-pad: "24px"
+  slip-pad-wide: "40px"
+  control: "48px"
 components:
   button-primary:
     backgroundColor: "{colors.ink}"
     textColor: "{colors.paper}"
+    typography: "{typography.label}"
     rounded: "{rounded.none}"
-    padding: "0 1.25rem"
-    height: "2.75rem"
+    padding: "0 20px"
+    height: "48px"
   button-primary-hover:
     backgroundColor: "{colors.ink-hover}"
     textColor: "{colors.paper}"
   button-secondary:
-    backgroundColor: "transparent"
+    backgroundColor: "{colors.paper}"
     textColor: "{colors.ink}"
+    typography: "{typography.label}"
     rounded: "{rounded.none}"
-    padding: "0 1.25rem"
-    height: "2.75rem"
+    padding: "0 20px"
+    height: "48px"
   button-secondary-hover:
     backgroundColor: "{colors.wash}"
     textColor: "{colors.ink}"
+  button-link:
+    textColor: "{colors.ink}"
+    typography: "{typography.label}"
   field:
-    backgroundColor: "{colors.well}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.none}"
-    padding: "0 0.75rem"
-    height: "2.75rem"
-  line-user:
     backgroundColor: "{colors.paper}"
     textColor: "{colors.ink}"
     typography: "{typography.body}"
-  line-agent:
-    backgroundColor: "{colors.paper}"
-    textColor: "{colors.ink}"
-    typography: "{typography.body}"
-  product-image:
-    backgroundColor: "{colors.well}"
     rounded: "{rounded.none}"
-    width: "100%"
+    padding: "0 12px"
+    height: "48px"
+  field-label:
+    textColor: "{colors.ink}"
+    typography: "{typography.label}"
+  slip:
+    backgroundColor: "{colors.paper}"
+    rounded: "{rounded.none}"
+    padding: "{spacing.slip-pad}"
+  menu-item-hover:
+    backgroundColor: "{colors.wash}"
+    textColor: "{colors.ink}"
+    typography: "{typography.label}"
+    padding: "10px 16px"
 ---
 
 # Design System: Shopping with Agent
 
 ## Overview
 
-**Creative North Star: "Specimen Field"**
+**Creative North Star: "The Itemized Receipt"**
 
-The UI is one warm sheet of paper. Talk, chrome, and the download sit on that sheet with no dark shell, no hairline rails, and no second color shouting for attention. Ink is the only accent: it writes the conversation, fills the primary control, and frames a catalog photo when a URL exists. The homepage stays a chat — a shopper line, an assistant answer with three products in a row, a follow-up line, then a sticky ink button that downloads `shopping-mcp.json`.
+Shopping with Agent prints like a till receipt. Every surface is white paper with black ink: one monospace face (IBM Plex Mono), thin 1px black rules, sharp rectangular fields borrowed from monochrome checkout forms. Rank comes from weight and capitals, not from size; the whole ramp spans only 12px to 18px.
 
-Density is conversational, not storefront. Header and footer are type on paper. Secondary routes (docs, privacy, seller) keep the same face and the same quiet column. Motion is one ease-out rise on thread children when reduced motion is off. The cart-with-agent mark stays `public/logo.png`, shown with multiply and grayscale so its black plate disappears into the paper.
+Content is organized with receipt grammar. Account facts read as itemized lines (LABEL, then a dotted leader, then a right-aligned value). Stores are numbered lines (01, 02) with a bracketed status word in a fixed-width column. Sections are separated by dashed "tear" rules. Pages that hold a task (login, consent, profile) sit on a slip: a white panel with a 1px black edge.
+
+Motion has one authored moment. The slip prints in, store lines feed in after it, status words stamp. Everything else is a 150ms state change.
 
 **Key Characteristics:**
-- Full-viewport warm paper; header, thread, sticky download, and footer share one sheet
-- Unfilled transcript lines — user right-aligned and medium, agent left-aligned
-- Product photos only when a URL exists: square, 1px ink frame, white well, contain
-- Sticky ink control “Download MCP config” with one muted caption
-- Schibsted Grotesk for talk; ui-monospace only for `shopping-mcp.json`
-- Logo mark uses `mix-blend-multiply` and grayscale on paper
+- One face, one ink, one paper. Gray is only for secondary text and the hover wash.
+- 1px black borders everywhere; square corners everywhere; no shadows.
+- Uppercase, tracked labels (0.06em) for every label, heading, button, and status word.
+- Dotted leaders, numbered lines, bracketed status, dashed tear rules.
+- Tabular numerals globally, so values and counts align like a till printout.
 
 ## Colors
 
-A warm paper field with one ink: type, action, focus, and the only allowed stroke.
+Strict monochrome: paper, ink, and one gray. Color never carries meaning by itself.
 
 ### Primary
-- **Ink**: Action fills, headings, caret, selection background, focus ring, and the product-image frame. Same value as the theme’s heading, line, focus, and input aliases.
-- **Ink Hover**: Primary-button hover — a step lighter than ink, still neutral.
+- **Till Ink** (ink): All text, every border and rule, the primary button fill, focus outline, text selection background, and caret. It is the only ink.
+- **Pressed Ink** (ink-hover): Primary button hover only. A barely-lifted black so the press reads without a second color.
 
 ### Neutral
-- **Warm Paper**: App ground, button label on ink fills, and the sticky download strip.
-- **Quiet Type**: Default body, nav, captions, placeholders, and the download caption.
-- **Paper Wash**: Secondary-button hover only — a slightly deeper sheet, not a card face.
-- **Image Well**: Field fill and product-image background. White so catalog photos stay opaque and uncut.
+- **Receipt White** (paper): The single surface for page, slip, fields, menus, and secondary buttons. Nothing sits on a tinted panel.
+- **Faded Print** (muted): Secondary text, term labels in itemized lines, placeholders, dotted leaders, line numbers, non-connected status words, footer links. Contrast 5.74:1 on white.
+- **Hover Wash** (wash): Hover and keyboard-focus fill for outlined buttons, menu items, and store rows (store rows use it at 60%). Never a resting surface.
 
 ### Named Rules
-**The One Ink Rule.** Ink is the only chromatic voice. Do not introduce green, moss, clay, or a second brand accent. Quiet type and paper wash stay in the warm-gray family.
+**The One Ink Rule.** Text, rules, borders, and the primary fill are all the same black. Hierarchy never comes from a second hue.
 
-**The Paper Field Rule.** Ground is paper on every route. Do not wrap the app in a darker outer void or a glowing shell.
+**The No-Signal-Color Rule.** Errors, statuses, and confirmations use words, brackets, and weight, never red, green, or amber. An invalid field gets the same 1px inner ring as focus, plus an ink-colored message.
 
 ## Typography
 
-**Display Font:** Schibsted Grotesk (with ui-sans-serif)
-**Body Font:** Schibsted Grotesk (with ui-sans-serif)
-**Label/Mono Font:** ui-monospace stack (SFMono / Menlo / Monaco / Consolas)
+**Display Font:** none
+**Body Font:** IBM Plex Mono (with ui-monospace, SFMono-Regular, Menlo, monospace)
+**Label/Mono Font:** the same face; `--font-sans` and `--font-mono` both resolve to `--font-receipt`.
 
-**Character:** One grotesque for every human-readable surface. Loaded weights are 400, 500, 600, and 700; the build uses 400, 500, and 700. Mono is a filename, not a second personality.
+**Character:** A single typewriter-grade mono face loaded at 400/500/600/700, so a line reads as printed output and every column aligns.
 
 ### Hierarchy
-- **Headline** (700, 1.75rem, 1.15, −0.02em): Page titles on docs, privacy, and seller.
-- **Title** (500, 1rem, stepping to 1.0625rem at `sm`): Header wordmark “Shopping with Agent.”
-- **Intro** (400, 1.0625rem, 1.6): Supporting paragraph under page headlines.
-- **Body** (400, 1rem, 1.6; 500 on user lines, buttons, and product names): Transcript, lists, and actions.
-- **Label** (400 default, 700 on field labels; 0.8125rem, 1.4): Nav, captions, status, and the download caption.
-- **Mono** (400, 0.8125rem): The literal filename `shopping-mcp.json` only.
+- **Headline** (700, 1.125rem, 1.3, caps): The page title on each slip or page (LOGIN, PROFILE, WHAT WE STORE.). The only step above body.
+- **Body** (400, 0.9375rem, 1.6): Values in itemized lines, chat lines, field input, list items. Store names use body at 600 in caps.
+- **Intro** (400, 0.9375rem, 1.7, muted): The standfirst under a page headline on docs and privacy. Same size as body, looser leading.
+- **Label** (500, 0.75rem, 1.45, caps, 0.06em): Field labels, buttons, menu items, status words, section headings (at 600), term labels (400, muted), helper and error text.
+- **Wordmark** (600, 0.8125rem, caps): "Shopping with Agent" in the header only.
 
 ### Named Rules
-**The Talk Face Rule.** Schibsted Grotesk carries all human-readable UI. Do not introduce a second display family.
+**The Weight-Not-Size Rule.** Rank is set with weight (400/500/600/700) and capitals. New surfaces add no new font sizes; a heading inside a slip is label size at 600, not a bigger number.
 
-**The Mono Filename Rule.** Mono appears for `shopping-mcp.json` only — never for headlines, nav, or transcript prose.
+**The Tabular Rule.** Numerals are tabular everywhere (`font-variant-numeric: tabular-nums` on html). Counts are zero-padded to two digits (01, 02; "··" while loading).
 
 ## Layout
 
-A full-viewport flex column (`h-dvh`): header, scrolling content, optional sticky download, footer. Horizontal padding is 1.25rem, stepping to 2rem at `sm`. The homepage thread and download row constrain to 48rem (`max-w-3xl`); docs, privacy, and seller constrain to 36rem (`max-w-xl`). Thread children stack with 1.5rem gap; the three-product row is one column, then three at `sm`, with 2rem gutters. Header min-height is 3.5rem / 4rem at `sm`; footer matches the 3.5rem bar. The download strip is `sticky bottom-0` on paper, no top rule: ink button, then one caption.
+Single column, centered. Horizontal gutters are 20px, widening to 32px from the `sm` breakpoint (640px). The shell is a full-height column: a header (56px, 64px from `sm`) with a 1px bottom rule, the page, then a footer (48px) with a 1px top rule and right-aligned links.
+
+Measures by surface: login and consent slips are 28rem wide; the profile slip is 42rem; the home conversation is 48rem; docs and privacy are 36rem. Task slips sit on 48px vertical page padding and pad 24px inside (40px from `sm`). Login and consent center the slip in the viewport; profile top-aligns it so a long store list can scroll.
+
+Vertical rhythm inside a slip: headline, then 32px to the first section, 10px between itemized lines, 32px around each tear rule. Every interactive control is at least 48px tall.
+
+### Named Rules
+**The Receipt Grammar Rule.** Key-value facts are itemized lines: a muted caps term, a dotted leader that fills the gap, and the value right-aligned. Lists of owned things are numbered lines with zero-padded indices (01, 02). Status is a bracketed caps word ([CONNECTED], [AWAITING SYNC], [SYNC FAILED], [DISCONNECTED]) in a right-hand column 15ch wide from `sm`. Numbered lines are a deliberate, user-approved part of this world, not a generic numbering habit; use them only for real ordered or itemized records.
 
 ## Elevation & Depth
 
-The field is flat. No drop shadows, no inset glow, no tonal bubble stack. Depth is type weight, alignment (user right, agent left), and the single 1px ink frame on a product image when a URL exists.
+Flat. There are no shadows anywhere. Depth is a 1px black edge: the slip, the dropdown menu, product tiles, and fields are all lines on white. The dropdown sits above content by z-order and its own border, nothing else.
 
 ### Named Rules
-**The Flat Field Rule.** Do not add shadows to the shell, header, footer, download strip, buttons, or fields. A product image earns a hairline frame; chrome does not.
+**The Line-Not-Lift Rule.** If something needs to separate from the page, give it a 1px ink border. Never a shadow, blur, or tinted backdrop.
 
 ## Shapes
 
-Square. No corner radius on buttons, fields, lines, or image wells (`0`). The only stroke in the system is the product-image frame: 1px solid ink on a white square, `object-fit: contain`. Fields are unstroked white wells on paper. Header, footer, and the sticky download have no hairline borders.
-
-### Named Rules
-**The Unframed Chrome Rule.** Do not put hairline rules on header, footer, or the download strip. The product-image frame is the exception, and only when an image URL exists.
-
-**The Framed Image Rule.** When a product URL exists, use the product-image well: `aspect-square`, 1px ink border, white background, `object-fit: contain`. Do not cut catalog photos out as transparent silhouettes. Omit the well entirely when there is no URL.
+Every corner is square (0px): slips, fields, buttons, menus, product tiles, client logos. Four rule styles carry all structure:
+- **Solid 1px ink:** slip edges, fields, buttons, header and footer rules, product grid cells, the OR divider.
+- **Dashed 1px ink ("tear"):** between sections of a slip, under the email line in the account menu, and around the empty-stores box.
+- **Dotted 1px ink-muted:** leaders inside itemized lines and separators between store lines.
+- **Focus outline:** 2px ink, offset 2px, on every focusable element; fields use a 1px inner ring instead.
 
 ## Components
 
 ### Buttons
-Sharp ink rectangles. Shared `min-height: 2.75rem` and horizontal padding 1.25rem. Medium weight, paper type on ink, no radius, no border.
-
-- **Primary:** Ink fill, paper label; hover ink-hover; disabled wait cursor at 60% opacity.
-- **Secondary:** Transparent, ink label; hover paper wash. Used for Disconnect.
-- **Focus:** Global 2px ink outline, 2px offset.
-
-### Cards / Containers
-No card system. Compare items are a plain grid: medium ink name, quiet label spec. Seller status is a definition list — muted term, ink value — not tiles.
+Printed, square, and loud only when black.
+- **Shape:** square (0px), 1px ink border, at least 48px tall, 20px horizontal padding, label type in caps.
+- **Primary:** ink fill, white text. One per slip, for the action that moves forward (EMAIL ME A SIGN-IN LINK, ALLOW, CONNECT STORE).
+- **Hover / Focus:** fill and border go to Pressed Ink over 150ms; pressing nudges the button down 1px; disabled is 50% opacity with a wait cursor.
+- **Secondary:** white fill, ink border and text; hover fills with Hover Wash. Used for the alternative path (CONTINUE WITH GOOGLE, DENY).
+- **Link:** caps label text with a transparent underline (4px offset) that inks in on hover. Used for in-row actions (SYNC NOW, DISCONNECT), header nav, and footer links (muted there).
 
 ### Inputs / Fields
-- **Style:** White well, no stroke, no radius, ink type, quiet placeholder, `min-height: 2.75rem`, horizontal padding 0.75rem.
-- **Focus:** 2px ink outline, 2px offset.
-- **Labels:** Label size, bold, ink, stacked above the field with a small gap.
-- **Status / error:** Ink at label size — no separate alert color.
+- **Style:** white, 1px ink border, square, 48px tall, 12px horizontal padding, body type. Placeholders are muted caps.
+- **Label:** caps label at 500 in ink, stacked 8px above the field.
+- **Focus:** native outline removed; a 1px inner ink ring doubles the border to 2px.
+- **Error / Disabled:** invalid fields get the same ring; the message sits below in label type, ink, in a reserved 20px line so the form never shifts.
 
 ### Navigation
-Header: logo mark (28px / 32px at `sm`, multiply + grayscale) plus medium ink wordmark left; quiet label links right that go ink on hover. Footer: the same link treatment, right-aligned. No underline on nav. Inline content links use medium ink, underline, decoration ink, `underline-offset: 4px`.
+- **Header:** logo plus caps wordmark on the left; DOCS (link button) and the account control on the right, 24 to 32px apart.
+- **Account menu:** LOGIN when signed out; ACCOUNT with a small stroked SVG chevron when signed in. The menu is a 224px slip that opens 12px under the trigger: email in muted label above a dashed rule, then PROFILE and LOGOUT rows (10px by 16px) that take the Hover Wash on hover and keyboard focus. Opens in 150ms with a 4px drop, closes in 100ms. While the session resolves the slot is held invisibly so the header never shifts.
+- **Footer:** muted caps link buttons, right-aligned, darkening to ink on hover.
 
-### Transcript Lines (signature)
-Not capsules. Same paper as the page.
+### Slip (signature)
+The page's receipt: a white panel with a 1px ink edge holding one task. It prints in on arrival (opacity plus a 0.5rem rise, 320ms, cubic-bezier(0.16, 1, 0.3, 1)). When a flow is certain to navigate away (OAuth redirect, Shopify redirect), it fades out over 200ms first; a failure never animates the form away.
 
-- **User:** Right-aligned (`ml-auto`), max `min(75%, 36rem)`, medium ink, no fill, no padding box.
-- **Agent:** Left-aligned (`mr-auto`), max `min(40rem, 100%)`, regular ink.
-- **Thread motion:** Children animate `translateY(0.4rem)` → none over 0.5s `cubic-bezier(0.16, 1, 0.3, 1)` with 0.12s / 0.24s stagger when motion is allowed.
+### Itemized Line and Store Line (signature)
+- **Itemized line:** muted caps term, dotted leader, right-aligned ink value. The stores heading reuses it with the zero-padded count as its value.
+- **Store line:** muted index (01) in a 2ch column, store name in caps at 600, bracketed status on the right (ink for CONNECTED, muted otherwise). Below, indented to the name: slug, then a caps meta line (SHOPIFY · N PRODUCTS · SYNCED ...), then link-button actions. Lines feed in 280ms each, staggered 60ms and capped at the fourth; a changed status re-stamps with a 180ms fade.
+- **Empty state:** a dashed-bordered box with a caps line and a muted explanation.
 
-### Product Image (signature)
-Square well, 1px ink frame, white ground, contain. Render only when a URL exists.
-
-### Sticky Download (signature)
-Paper strip, no top border, sticky above the footer. Ink primary button “Download MCP config” beside (or above, on narrow) one quiet caption: mono `shopping-mcp.json`, then an em dash and the three setup steps in a single sentence.
+### Login divider
+Two 1px ink lines with a muted caps OR between them, separating the email form from CONTINUE WITH GOOGLE.
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** keep shopper surfaces as one paper conversation: user line, agent compare, sticky ink download.
-- **Do** use Schibsted Grotesk for talk and reserve mono for `shopping-mcp.json`.
-- **Do** use ink for primary actions, focus, and the product-image frame.
-- **Do** show `public/logo.png` with multiply and grayscale so the black plate drops out on paper.
+- **Do** put every task on a slip: white, 1px ink edge, square, 24px padding (40px from `sm`).
+- **Do** write labels, headings, buttons, and status words in caps with 0.06em tracking, and set rank with weight.
+- **Do** present facts as itemized lines with dotted leaders and right-aligned values, and separate slip sections with a dashed tear rule.
+- **Do** show status as a bracketed caps word in a fixed right-hand column, distinguished by ink versus muted, never by hue.
+- **Do** show the logo (logo.png) with `mix-blend-multiply` and `grayscale` so it prints in the same ink.
+- **Do** keep reduced motion: fades stay (state remains legible), all travel (rises, drops) is removed.
+- **Do** use "Shopping with Agent" in UI chrome and "Shopping MCP" for protocol, config file, and developer copy.
 
 ### Don't:
-- **Don't** ship green, moss, a dark ground, or a glowing shell.
-- **Don't** draw hairline chrome on header, footer, or the download strip.
-- **Don't** wrap transcript lines in filled or rounded bubbles.
-- **Don't** introduce a second display face or use mono for conversational copy.
-- **Don't** cut product photos out as transparent silhouettes, and don’t invent a well when there is no image URL.
+- **Don't** add a second hue, a tinted surface, or a colored status chip.
+- **Don't** round a corner or add a shadow.
+- **Don't** add font sizes beyond the five tokens, or a second typeface.
+- **Don't** use the Hover Wash as a resting background.
+- **Don't** animate a slip away before navigation is certain, or stagger more than four lines.

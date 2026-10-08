@@ -1,12 +1,13 @@
 import Link from "next/link";
 import Image from "next/image";
+import { AccountMenu } from "@/features/account/account-menu";
 
 export function Header() {
   return (
-    <header className="flex min-h-14 shrink-0 items-center justify-between gap-3 px-5 sm:min-h-16 sm:px-8">
+    <header className="relative z-20 flex min-h-14 shrink-0 items-center justify-between gap-4 border-b border-ink px-5 sm:min-h-16 sm:px-8">
       <Link
         href="/"
-        className="flex min-w-0 items-center gap-2.5 text-wordmark font-medium text-heading no-underline sm:text-wordmark-lg"
+        className="caps flex min-w-0 items-center gap-3 text-wordmark font-semibold text-heading no-underline"
       >
         <Image
           src="/logo.png"
@@ -18,14 +19,11 @@ export function Header() {
         />
         <span className="truncate">Shopping with Agent</span>
       </Link>
-      <nav aria-label="Primary" className="flex shrink-0 items-center gap-4 sm:gap-6">
-        <Link href="/docs" className="text-label text-muted no-underline hover:text-heading">
+      <nav aria-label="Primary" className="flex shrink-0 items-center gap-6 has-[[data-pending]]:invisible sm:gap-8">
+        <Link href="/docs" className="btn-link">
           Docs
         </Link>
-        <Link href="/seller" className="text-label text-muted no-underline hover:text-heading">
-          <span className="sm:hidden">Stores</span>
-          <span className="hidden sm:inline">Store owners</span>
-        </Link>
+        <AccountMenu />
       </nav>
     </header>
   );

@@ -16,7 +16,7 @@ test("Continue with Google sends the browser to Google's account picker with our
   const response = await request(app.getHttpServer())
     .post("/api/auth/sign-in/social")
     .set("Origin", webOrigin())
-    .send({ provider: "google", callbackURL: `${webOrigin()}/seller` });
+    .send({ provider: "google", callbackURL: `${webOrigin()}/profile` });
   assert.equal(response.status, 200, response.text);
 
   const url = new URL(response.body.url);

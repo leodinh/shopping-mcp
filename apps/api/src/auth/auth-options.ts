@@ -10,6 +10,7 @@ import {
   mcpResource,
   webOrigin,
 } from "@shopping-mcp/config";
+import { sendMagicLinkEmail } from "./magic-link-email";
 
 /** The one API scope for now; per-feature scopes come with the features that need them. */
 export const ACCOUNT_SCOPE = "account";
@@ -31,10 +32,7 @@ export function authOptions() {
     },
     plugins: [
       jwt(),
-      magicLink({
-        // ponytail: logs the link instead of emailing it; real delivery is #14.
-        sendMagicLink: async ({ email, url }) => console.log(`Magic link for ${email}: ${url}`),
-      }),
+      magicLink({ sendMagicLink: ({ email, url }) => sendMagicLinkEmail({ email, url }) }),
       mcp({
         resource: mcpResource(),
         loginPage: `${webOrigin()}/login`,

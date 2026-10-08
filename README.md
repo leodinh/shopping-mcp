@@ -31,7 +31,7 @@ Prerequisites: Node.js 22+, pnpm, PostgreSQL 17+, and a Shopify app for connecti
 
 `pnpm dev` starts three processes: the Next.js UI at http://127.0.0.1:3000, the Nest API and MCP server at http://127.0.0.1:3001, and a worker that drains catalog sync every 10s. Start them separately with `pnpm dev:web`, `pnpm dev:api`, and `pnpm dev:worker`.
 
-Then open http://localhost:3000/login, sign in (the magic link is printed in the API log until email delivery lands), and connect a Shopify store from `/seller`.
+Then open http://localhost:3000/login and sign in. Without `RESEND_API_KEY` the magic link is printed in the API log; with it, it's emailed. Then connect a Shopify store from `/seller`.
 
 ## Configuration
 
@@ -48,6 +48,8 @@ All variables live in the root `.env`.
 | `SHOPIFY_SCOPES`         | no       | Requested scopes; default `read_products`.                                                                                             |
 | `API_PORT`               | no       | API port; default `3001`.                                                                                                              |
 | `BETTER_AUTH_SECRET`     | yes      | Signs Better Auth sessions and OAuth state (dashboard and MCP sign-in). Generate separately.                                           |
+| `RESEND_API_KEY`         | no       | Resend API key (send-only) for magic-link emails. Unset: links are printed to the API console (local development).                     |
+| `EMAIL_FROM`             | no       | Sender, on a domain verified in Resend. Default `onboarding@resend.dev` only delivers to your own Resend account email.                |
 | `WEB_ORIGIN`             | no       | Web UI origin (CORS, trusted origin, login/consent pages); default `http://localhost:3000`.                                            |
 | `API_ORIGIN`             | no       | Public API origin: Better Auth issuer (`<origin>/api/auth`) and MCP resource (`<origin>/api/mcp`); default `http://localhost:3001`.    |
 | `COOKIE_DOMAIN`          | no       | Parent domain for cross-subdomain session cookies (e.g. `leodev.online` for `app.` / `api.` siblings); unset on localhost.             |
@@ -199,6 +201,7 @@ The API and worker run TypeScript through `tsx`; they do not emit build artifact
 
 - **`redirect_uri is not whitelisted`** from Shopify: add `SHOPIFY_REDIRECT_URI`, exactly, to the Shopify app's allowed redirect URLs and release the version ([Shopify app setup](#shopify-app-setup)).
 - **"Shopify access expired. Reconnect your store."** on `/seller`: the refresh token expired (90 days without a sync) or the app was uninstalled. Connect the same shop again.
+- **"Could not send the sign-in link"**: the API log shows Resend's reason. With the default test sender, Resend only delivers to your own Resend account email; verify a domain in Resend and set `EMAIL_FROM` to an address on it.
 - **`CREDENTIALS_KEY is required`**: set it in `.env`; see [Configuration](#configuration).
 - **Catalog setup screen / 503**: check `.env`, database health, and `pnpm run db:migrate`.
 - **Sync fetch failed**: check the Shopify connection and scopes. The previous catalog remains intact.

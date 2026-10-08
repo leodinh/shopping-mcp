@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { fetchSeller } from "../src/features/seller/api";
+import { fetchSeller } from "../src/features/profile/api";
 
 test("seller client includes credentials and accepts a signed-out response", async (context) => {
   const controller = new AbortController();

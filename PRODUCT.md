@@ -24,7 +24,7 @@ People-facing name: **Shopping with Agent**. Protocol / config / repo name: **Sh
 
 ## Operating Context
 
-Next.js UI on `:3000` + Nest API/MCP on `:3001` + Nest worker + PostgreSQL + Shopify OAuth, developed on localhost (`pnpm dev`). Shoppers add the MCP server to an assistant (downloadable `shopping-mcp.json` pointing at `http://127.0.0.1:3001/api/mcp`). Store owners connect at `/seller`. Contact is GitHub issues.
+Next.js UI on `:3000` + Nest API/MCP on `:3001` + Nest worker + PostgreSQL + Shopify OAuth, developed on localhost (`pnpm dev`). Shoppers add the MCP server to an assistant (downloadable `shopping-mcp.json` pointing at `http://127.0.0.1:3001/api/mcp`). Store owners sign in and connect stores at `/profile`. Contact is GitHub issues.
 
 Heading toward a public product. The current privacy copy (“local app / should not be used with real customer data”) is stale and must not be treated as product policy. Public launch still requires real auth and data isolation (not present today).
 

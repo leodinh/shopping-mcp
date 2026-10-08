@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { authClient } from "./auth-client";
 import { describeClient, type PublicClient } from "./client-identity";
+import { Slip, useLeave } from "./slip";
 
 const SCOPE_LABELS: Record<string, string> = {
   openid: "Know who you are",
@@ -31,6 +32,8 @@ export function Consent() {
       });
   }, [clientId]);
 
+  const { leaving, leave } = useLeave();
+
   async function decide(accept: boolean) {
     setPending(true);
     const { data, error } = await authClient.oauth2.consent({ accept });
@@ -39,62 +42,79 @@ export function Consent() {
       setMessage("That did not work. Start the connection again from your assistant.");
       return;
     }
-    window.location.href = data.url;
+    leave(() => window.location.assign(data.url));
   }
 
   return (
-    <section className="mx-auto w-full max-w-xl flex-1 overflow-y-auto px-5 py-10 sm:px-8">
-      <div className="flex items-center gap-4">
-        {client.logoUrl ? (
-          // Logos come from any client's own host; next/image would need every host allow-listed.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={client.logoUrl}
-            alt=""
-            width={48}
-            height={48}
-            referrerPolicy="no-referrer"
-            className="size-12 rounded object-contain"
-          />
-        ) : null}
-        <h1 className="text-headline font-bold text-heading break-words">
-          Allow {client.name} access?
-        </h1>
-      </div>
-      <p className="mt-3 text-label text-muted">
-        {client.verifiedHost ? (
-          <>
-            Verified app from{" "}
-            <span className="font-medium text-heading">{client.verifiedHost}</span>
-          </>
-        ) : (
-          <>
-            Unverified app: its name is self-declared. Only continue if you started this connection.
-          </>
-        )}
-      </p>
-      <p className="mt-6 text-intro text-muted">It wants to:</p>
-      <ul className="mt-6 flex list-disc flex-col gap-2 pl-5">
-        {scopes.map((scope) => (
-          <li key={scope}>{SCOPE_LABELS[scope] ?? scope}</li>
-        ))}
-      </ul>
-      <div className="mt-8 flex gap-3">
-        <button type="button" className="btn" disabled={pending} onClick={() => void decide(true)}>
-          Allow
-        </button>
-        <button
-          type="button"
-          className="btn-secondary"
-          disabled={pending}
-          onClick={() => void decide(false)}
-        >
-          Deny
-        </button>
-      </div>
-      <div role="status" aria-live="polite" className="mt-4 text-label font-medium text-heading">
-        {message}
-      </div>
-    </section>
+    <main className="grid flex-1 place-items-center overflow-y-auto px-5 py-12 sm:px-8">
+      <Slip label="Allow access" leaving={leaving} className="max-w-md p-6 sm:p-10">
+        <div className="flex items-center gap-4">
+          {client.logoUrl ? (
+            // Logos come from any client's own host; next/image would need every host allow-listed.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={client.logoUrl}
+              alt=""
+              width={40}
+              height={40}
+              referrerPolicy="no-referrer"
+              className="size-10 shrink-0 border border-ink object-contain p-1 grayscale"
+            />
+          ) : null}
+          <h1 className="caps min-w-0 break-words text-headline font-bold text-heading">
+            Allow {client.name} access?
+          </h1>
+        </div>
+        <p className="mt-4 text-label text-muted">
+          {client.verifiedHost ? (
+            <>
+              Verified app from{" "}
+              <span className="font-medium text-heading">{client.verifiedHost}</span>
+            </>
+          ) : (
+            <>
+              Unverified app: its name is self-declared. Only continue if you started this
+              connection.
+            </>
+          )}
+        </p>
+
+        <div className="tear my-6" />
+
+        <h2 className="caps text-label font-semibold text-heading">It wants to</h2>
+        <ul className="mt-4 flex flex-col gap-2.5">
+          {scopes.map((scope) => (
+            <li key={scope} className="flex gap-3 text-base text-heading">
+              <span aria-hidden className="text-muted">
+                –
+              </span>
+              {SCOPE_LABELS[scope] ?? scope}
+            </li>
+          ))}
+        </ul>
+
+        <div className="mt-8 grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            className="btn-secondary w-full"
+            disabled={pending}
+            onClick={() => void decide(false)}
+          >
+            Deny
+          </button>
+          <button
+            type="button"
+            className="btn w-full"
+            disabled={pending}
+            onClick={() => void decide(true)}
+          >
+            {pending ? "Working…" : "Allow"}
+          </button>
+        </div>
+        <p role="alert" className="mt-4 min-h-5 text-label font-medium text-heading">
+          {message}
+        </p>
+      </Slip>
+    </main>
   );
 }

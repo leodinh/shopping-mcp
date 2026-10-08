@@ -91,6 +91,7 @@ export function shopifyRedirectUri() {
   return process.env.SHOPIFY_REDIRECT_URI ?? "";
 }
 
-export function sellerDashboardUrl() {
-  return `${webOrigin()}/seller`;
+/** Where a User manages their account and connected stores. */
+export function profileUrl() {
+  return `${webOrigin()}/profile`;
 }

@@ -35,7 +35,7 @@ test("connecting a shop requires a signed-in User", async () => {
   assert.equal(response.status, 401);
 });
 
-test("a signed-in User connects a shop over HTTP and returns to the dashboard owning it", async () => {
+test("a signed-in User connects a shop over HTTP and returns to their profile owning it", async () => {
   const { db, drop } = await createTestDatabase("shopify_http");
   try {
     const [alice] = await db
@@ -78,7 +78,7 @@ test("a signed-in User connects a shop over HTTP and returns to the dashboard ow
       deps,
     );
     assert.equal(callback.status, 302);
-    assert.equal(callback.headers.get("location"), "http://localhost:3000/seller");
+    assert.equal(callback.headers.get("location"), "http://localhost:3000/profile");
     // Shopify only authorizes the store; it never signs anyone in.
     assert.equal(callback.headers.getSetCookie().length, 0);
 

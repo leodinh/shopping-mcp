@@ -4,8 +4,8 @@
 
 - `/`: shopper-facing home page with an example conversation and the `shopping-mcp.json` download.
 - `/docs`: how to add Shopping MCP to an assistant.
-- `/seller`: signed-in users connect Shopify stores and manage them: connection state, product count, last sync, **Sync now**, and **Disconnect** (stops the store and hides its products). One user can own several stores.
-- `/login`: email magic-link sign-in, shared by the dashboard and MCP clients' OAuth.
+- `/profile`: a signed-in user's account and connected stores: status, product count, last sync, **Sync now**, **Disconnect** (stops the store and hides its products, after an inline confirmation), and **Connect store**. One user can own several stores. Signed out, it redirects to `/login`.
+- `/login`: Continue with Google, or an email magic link; shared by the dashboard and MCP clients' OAuth.
 
 This is a development app: auth and data isolation are not ready for public deployment. Product context lives in `PRODUCT.md`; domain terms (Merchant, MerchantConnection, Store connection, …) in `CONTEXT.md`.
 
@@ -31,29 +31,30 @@ Prerequisites: Node.js 22+, pnpm, PostgreSQL 17+, and a Shopify app for connecti
 
 `pnpm dev` starts three processes: the Next.js UI at http://127.0.0.1:3000, the Nest API and MCP server at http://127.0.0.1:3001, and a worker that drains catalog sync every 10s. Start them separately with `pnpm dev:web`, `pnpm dev:api`, and `pnpm dev:worker`.
 
-Then open http://localhost:3000/login and sign in. Without `RESEND_API_KEY` the magic link is printed in the API log; with it, it's emailed. Then connect a Shopify store from `/seller`.
+Then open http://localhost:3000/login and sign in. Without `RESEND_API_KEY` the magic link is printed in the API log; with it, it's emailed. Then connect a Shopify store from `/profile`.
 
 ## Configuration
 
 All variables live in the root `.env`.
 
-| Variable                 | Required | Purpose                                                                                                                                |
-| ------------------------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`           | yes      | PostgreSQL URL including the user, e.g. `postgresql://USER@localhost:5432/shopping-mcp`. Add `:PASSWORD` only if the server needs one. |
-| `SESSION_SECRET`         | legacy   | Only decrypts Shopify credentials stored before `CREDENTIALS_KEY` existed (re-encrypted on their next sync). Not used for sign-in.     |
-| `CREDENTIALS_KEY`        | yes      | Encrypts stored Shopify tokens. **Must not change after use** (see below).                                                             |
-| `SHOPIFY_API_KEY`        | yes      | Your Shopify app's client ID.                                                                                                          |
-| `SHOPIFY_API_SECRET`     | yes      | Your Shopify app's client secret. Verifies OAuth callbacks (HMAC) and exchanges tokens.                                                |
-| `SHOPIFY_REDIRECT_URI`   | yes      | OAuth callback, `http://127.0.0.1:3001/api/connections/shopify/callback` locally. Must be allowed in the Shopify app.                  |
-| `SHOPIFY_SCOPES`         | no       | Requested scopes; default `read_products`.                                                                                             |
-| `API_PORT`               | no       | API port; default `3001`.                                                                                                              |
-| `BETTER_AUTH_SECRET`     | yes      | Signs Better Auth sessions and OAuth state (dashboard and MCP sign-in). Generate separately.                                           |
-| `RESEND_API_KEY`         | no       | Resend API key (send-only) for magic-link emails. Unset: links are printed to the API console (local development).                     |
-| `EMAIL_FROM`             | no       | Sender, on a domain verified in Resend. Default `onboarding@resend.dev` only delivers to your own Resend account email.                |
-| `WEB_ORIGIN`             | no       | Web UI origin (CORS, trusted origin, login/consent pages); default `http://localhost:3000`.                                            |
-| `API_ORIGIN`             | no       | Public API origin: Better Auth issuer (`<origin>/api/auth`) and MCP resource (`<origin>/api/mcp`); default `http://localhost:3001`.    |
-| `COOKIE_DOMAIN`          | no       | Parent domain for cross-subdomain session cookies (e.g. `leodev.online` for `app.` / `api.` siblings); unset on localhost.             |
-| `NEXT_PUBLIC_API_ORIGIN` | no       | API origin the web UI calls; default `http://localhost:3001`.                                                                          |
+| Variable                                    | Required | Purpose                                                                                                                                                                                        |
+| ------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                              | yes      | PostgreSQL URL including the user, e.g. `postgresql://USER@localhost:5432/shopping-mcp`. Add `:PASSWORD` only if the server needs one.                                                         |
+| `SESSION_SECRET`                            | legacy   | Only decrypts Shopify credentials stored before `CREDENTIALS_KEY` existed (re-encrypted on their next sync). Not used for sign-in.                                                             |
+| `CREDENTIALS_KEY`                           | yes      | Encrypts stored Shopify tokens. **Must not change after use** (see below).                                                                                                                     |
+| `SHOPIFY_API_KEY`                           | yes      | Your Shopify app's client ID.                                                                                                                                                                  |
+| `SHOPIFY_API_SECRET`                        | yes      | Your Shopify app's client secret. Verifies OAuth callbacks (HMAC) and exchanges tokens.                                                                                                        |
+| `SHOPIFY_REDIRECT_URI`                      | yes      | OAuth callback, `http://127.0.0.1:3001/api/connections/shopify/callback` locally. Must be allowed in the Shopify app.                                                                          |
+| `SHOPIFY_SCOPES`                            | no       | Requested scopes; default `read_products`.                                                                                                                                                     |
+| `API_PORT`                                  | no       | API port; default `3001`.                                                                                                                                                                      |
+| `BETTER_AUTH_SECRET`                        | yes      | Signs Better Auth sessions and OAuth state (dashboard and MCP sign-in). Generate separately.                                                                                                   |
+| `RESEND_API_KEY`                            | no       | Resend API key (send-only) for magic-link emails. Unset: links are printed to the API console (local development).                                                                             |
+| `EMAIL_FROM`                                | no       | Sender, on a domain verified in Resend. Default `onboarding@resend.dev` only delivers to your own Resend account email.                                                                        |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | no       | Enable "Continue with Google". Register `<API_ORIGIN>/api/auth/callback/google` as an authorized redirect URI. Signing in with Google and by email link for the same address is the same user. |
+| `WEB_ORIGIN`                                | no       | Web UI origin (CORS, trusted origin, login/consent pages); default `http://localhost:3000`.                                                                                                    |
+| `API_ORIGIN`                                | no       | Public API origin: Better Auth issuer (`<origin>/api/auth`) and MCP resource (`<origin>/api/mcp`); default `http://localhost:3001`.                                                            |
+| `COOKIE_DOMAIN`                             | no       | Parent domain for cross-subdomain session cookies (e.g. `leodev.online` for `app.` / `api.` siblings); unset on localhost.                                                                     |
+| `NEXT_PUBLIC_API_ORIGIN`                    | no       | API origin the web UI calls; default `http://localhost:3001`.                                                                                                                                  |
 
 Generate each secret separately, e.g. `openssl rand -hex 32`. Changing `CREDENTIALS_KEY` makes stored Shopify tokens unreadable, and those stores must reconnect. Credentials encrypted before `CREDENTIALS_KEY` existed (with the old `SESSION_SECRET`-derived key) still decrypt and are re-encrypted on their next sync.
 
@@ -141,7 +142,7 @@ A MerchantConnection stores the connector type, non-secret configuration, the sh
 `@shopping-mcp/commerce/store-connection` owns the Shopify OAuth lifecycle behind two operations:
 
 1. **Begin** (signed-in User only): validate the `*.myshopify.com` domain, reject a shop owned by another User (`shop_taken`), and store a single-use OAuth attempt for the User and shop, tied to the browser by an `oauth_binding` cookie (10 minutes). Nothing is created for the shop yet.
-2. **Complete**: verify the callback HMAC, consume the attempt, exchange the code for tokens outside any DB transaction, then in one transaction create the Merchant for the User, or **claim** it if it predates Users, store encrypted credentials, and request a sync. The browser returns to `/seller`; Shopify never signs anyone in.
+2. **Complete**: verify the callback HMAC, consume the attempt, exchange the code for tokens outside any DB transaction, then in one transaction create the Merchant for the User, or **claim** it if it predates Users, store encrypted credentials, and request a sync. The browser returns to `/profile`; Shopify never signs anyone in.
 
 Both return typed outcomes (`{ ok: false, reason }`); the API maps each reason to an HTTP status. Connecting while signed out is a 401. A failed token exchange uses up the attempt; the User starts again. **Disconnect** (dashboard) and the `app/uninstalled` webhook share one path: disable the connection, drop its credentials, hide its products.
 
@@ -200,12 +201,12 @@ The API and worker run TypeScript through `tsx`; they do not emit build artifact
 ## Troubleshooting
 
 - **`redirect_uri is not whitelisted`** from Shopify: add `SHOPIFY_REDIRECT_URI`, exactly, to the Shopify app's allowed redirect URLs and release the version ([Shopify app setup](#shopify-app-setup)).
-- **"Shopify access expired. Reconnect your store."** on `/seller`: the refresh token expired (90 days without a sync) or the app was uninstalled. Connect the same shop again.
+- **"Shopify access expired. Reconnect your store."** on `/profile`: the refresh token expired (90 days without a sync) or the app was uninstalled. Connect the same shop again.
 - **"Could not send the sign-in link"**: the API log shows Resend's reason. With the default test sender, Resend only delivers to your own Resend account email; verify a domain in Resend and set `EMAIL_FROM` to an address on it.
 - **`CREDENTIALS_KEY is required`**: set it in `.env`; see [Configuration](#configuration).
 - **Catalog setup screen / 503**: check `.env`, database health, and `pnpm run db:migrate`.
 - **Sync fetch failed**: check the Shopify connection and scopes. The previous catalog remains intact.
-- **No products**: connect a Shopify store, then wait for the worker or use Retry sync on `/seller`.
-- **"Shopify app uninstalled. Reconnect your store."** on `/seller`: the app was uninstalled from the shop. Connect it again.
+- **No products**: connect a Shopify store, then wait for the worker or use Retry sync on `/profile`.
+- **"Shopify app uninstalled. Reconnect your store."** on `/profile`: the app was uninstalled from the shop. Connect it again.
 - **Database connection refused**: make sure `DATABASE_URL` matches your PostgreSQL host and port.
 - **Migration ledger errors on an old database**: databases built by the old SQL runner must be recreated before `pnpm run db:migrate`.

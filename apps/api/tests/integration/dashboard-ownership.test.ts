@@ -32,7 +32,7 @@ async function signIn(email: string) {
     const sent = await request(app.getHttpServer())
       .post("/api/auth/sign-in/magic-link")
       .set("Origin", webOrigin())
-      .send({ email, callbackURL: `${webOrigin()}/seller` });
+      .send({ email, callbackURL: `${webOrigin()}/profile` });
     assert.equal(sent.status, 200, sent.text);
   } finally {
     console.log = log;

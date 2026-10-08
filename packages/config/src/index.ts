@@ -37,6 +37,13 @@ export function cookieDomain() {
   return process.env.COOKIE_DOMAIN || undefined;
 }
 
+/** Google sign-in credentials; Google sign-in is off unless both are set. */
+export function googleOAuth() {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  return clientId && clientSecret ? { clientId, clientSecret } : undefined;
+}
+
 /** Resend API key for sign-in emails; unset means links are printed to the console instead. */
 export function resendApiKey() {
   return process.env.RESEND_API_KEY || undefined;
@@ -84,6 +91,7 @@ export function shopifyRedirectUri() {
   return process.env.SHOPIFY_REDIRECT_URI ?? "";
 }
 
-export function sellerDashboardUrl() {
-  return `${webOrigin()}/seller`;
+/** Where a User manages their account and connected stores. */
+export function profileUrl() {
+  return `${webOrigin()}/profile`;
 }

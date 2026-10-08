@@ -11,3 +11,7 @@ The five canonical roles, unchanged: `needs-triage`, `needs-info`, `ready-for-ag
 ### Domain docs
 
 Single-context: one `CONTEXT.md` plus `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+## Frontend
+
+Work in `apps/web` follows `apps/web/CLAUDE.md` (structure, data and auth, visual system, motion, accessibility).

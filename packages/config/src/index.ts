@@ -37,6 +37,16 @@ export function cookieDomain() {
   return process.env.COOKIE_DOMAIN || undefined;
 }
 
+/** Resend API key for sign-in emails; unset means links are printed to the console instead. */
+export function resendApiKey() {
+  return process.env.RESEND_API_KEY || undefined;
+}
+
+/** Sender for sign-in emails. Resend's test sender only delivers to the Resend account's own email. */
+export function emailFrom() {
+  return process.env.EMAIL_FROM || "Shopping with Agent <onboarding@resend.dev>";
+}
+
 export function betterAuthSecret() {
   return requiredEnv("BETTER_AUTH_SECRET");
 }

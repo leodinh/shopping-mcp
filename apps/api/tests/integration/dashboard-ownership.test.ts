@@ -6,6 +6,9 @@ import { webOrigin } from "@shopping-mcp/config";
 import { database, merchantConnections, merchants, pool } from "@shopping-mcp/database";
 import { createApi } from "../../src/create-api";
 
+// Never send real email from tests (and spend the quota): links go to the console instead.
+delete process.env.RESEND_API_KEY;
+
 let app: Awaited<ReturnType<typeof createApi>>;
 const emails = {
   alice: `alice-${randomUUID()}@example.test`,

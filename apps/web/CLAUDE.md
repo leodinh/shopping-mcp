@@ -17,11 +17,13 @@ Read first: `DESIGN.md` (visual system, its named rules are binding), `../../PRO
 
 - Server components by default. Add `"use client"` only for state, effects, event handlers, or browser APIs.
 - The API owns users and sessions. The web never reads the database or verifies cookies itself.
-- Call the API with `apiUrl()` and `credentials: "include"`. Parse every response with its `@shopping-mcp/contracts` schema (see `features/profile/api.ts`); never trust the response's shape.
+- Call the API with `apiUrl()`: from the browser with `credentials: "include"`, from the server by forwarding cookies (below). Parse every response with its `@shopping-mcp/contracts` schema (see `features/profile/api.ts`); never trust the response's shape.
 - Use `authClient` (`features/account/auth-client.ts`) for sign-in, sign-out and session. Don't hand-roll `/api/auth` requests.
 - Keep static pages static: don't read `cookies()` or `headers()` in the root layout or in shared chrome. Auth-dependent chrome resolves on the client and hides until resolved (`data-pending` in `account-menu.tsx`) rather than showing the wrong state.
-- Private pages may load their data on the server: forward the request's `Cookie` header to the API over loopback (`http://127.0.0.1:<API_PORT>`), never through `NEXT_PUBLIC_API_ORIGIN`, which goes out through the tunnel. Redirect signed-out users with `redirect("/login")`.
-- Leave a protected page before signing out (`router.replace("/")`, then `signOut()`), or the page's own signed-out redirect races it.
+- Protected pages (`/profile`) load their data on the server: forward the request's cookies (`(await cookies()).toString()`) to the API with `apiUrl()`. The API is the only judge of the session: it answers 401 without a valid one, and the page then calls `redirect("/")`. Never decide signed in or out from cookie names in the page.
+- `src/proxy.ts` is a fast first gate: it sends visitors with no session cookie at all home before rendering (`getSessionCookie`). It only checks that the cookie exists. Add new protected routes to its `matcher`, and still validate the session through the API in the page.
+- If the API can't be reached, show an error with a retry and no data. Never fall back to rendering private content.
+- Sign out the way `account-menu.tsx` does: `router.replace("/")`, then `signOut()`, then `router.refresh()`, so no protected page renders without a session.
 - Navigate with `next/navigation`. Use `window.location.assign` only for absolute external URLs (OAuth providers, an MCP client's callback).
 - Lint forbids calling `setState` synchronously inside an effect. Set state in the promise callback of the work the effect starts.
 

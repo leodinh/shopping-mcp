@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useId, useRef, useState, type FormEvent } from "react";
 import {
   shopifyConnectResponseSchema,
   type SellerResponse,
@@ -9,7 +9,6 @@ import {
   type ShopifyConnectRequest,
 } from "@shopping-mcp/contracts";
 import { apiUrl } from "@/lib/api/origin";
-import { authClient } from "../account/auth-client";
 import { Slip, useLeave } from "../account/slip";
 import { fetchSeller } from "./api";
 
@@ -49,14 +48,15 @@ function Row({ term, children }: { term: string; children: React.ReactNode }) {
   );
 }
 
-/** The signed-in User's account and their connected stores, printed as one receipt. */
-export function Profile() {
+/**
+ * The signed-in User's account and their connected stores, printed as one receipt. The page loads
+ * `initial` on the server (null when the API was unreachable); actions refetch here.
+ */
+export function Profile({ initial }: { initial: SellerResponse | null }) {
   const router = useRouter();
-  const { data: session, isPending } = authClient.useSession();
   const { leaving, leave } = useLeave();
-  const [seller, setSeller] = useState<SellerResponse | null>(null);
-  const [usesGoogle, setUsesGoogle] = useState(false);
-  const [unavailable, setUnavailable] = useState(false);
+  const [seller, setSeller] = useState(initial);
+  const [unavailable, setUnavailable] = useState(!initial);
   const [busy, setBusy] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
@@ -65,29 +65,16 @@ export function Profile() {
   const [notice, setNotice] = useState("");
   const shopId = useId();
 
-  useEffect(() => {
-    if (!isPending && !session) router.replace("/login");
-  }, [isPending, session, router]);
-
-  useEffect(() => {
-    if (!session) return;
-    const controller = new AbortController();
-    fetchSeller(controller.signal).then(
-      (payload) => !controller.signal.aborted && setSeller(payload),
-      () => !controller.signal.aborted && setUnavailable(true),
-    );
-    authClient
-      .listAccounts()
-      .then(({ data }) =>
-        setUsesGoogle(!!data?.some((account) => account.providerId === "google")),
-      );
-    return () => controller.abort();
-  }, [session]);
+  console.log("initial", initial);
+  console.log("unavailable", unavailable);
 
   async function reload() {
-    setUnavailable(false);
     try {
-      setSeller(await fetchSeller());
+      const payload = await fetchSeller();
+      // The session ended meanwhile (signed out in another tab, or expired).
+      if (!payload) return router.replace("/");
+      setSeller(payload);
+      setUnavailable(false);
     } catch {
       setUnavailable(true);
     }
@@ -173,8 +160,8 @@ export function Profile() {
     );
   }
 
-  const stores = seller?.stores ?? [];
-  const loading = !session || !seller;
+  if (!seller) return null;
+  const { user, stores } = seller;
 
   return (
     <main className="flex flex-1 justify-center overflow-y-auto px-5 py-12 sm:px-8">
@@ -186,12 +173,12 @@ export function Profile() {
             Account
           </h2>
           <dl className="mt-4 flex flex-col gap-2.5">
-            <Row term="Email">
-              {session?.user.email ?? <span className="text-muted">Loading…</span>}
+            <Row term="Email">{user.email}</Row>
+            {user.name ? <Row term="Name">{user.name}</Row> : null}
+            <Row term="Sign-in">
+              {user.providers.includes("google") ? "Google · Email link" : "Email link"}
             </Row>
-            {session?.user.name ? <Row term="Name">{session.user.name}</Row> : null}
-            <Row term="Sign-in">{usesGoogle ? "Google · Email link" : "Email link"}</Row>
-            {session ? <Row term="Member since">{day(session.user.createdAt)}</Row> : null}
+            <Row term="Member since">{day(user.createdAt)}</Row>
           </dl>
         </section>
 
@@ -203,15 +190,11 @@ export function Profile() {
               Connected stores
             </h2>
             <span className="text-label font-semibold text-heading">
-              {loading ? "··" : String(stores.length).padStart(2, "0")}
+              {String(stores.length).padStart(2, "0")}
             </span>
           </div>
 
-          {loading ? (
-            <p className="mt-6 text-label text-muted" aria-live="polite">
-              Loading stores…
-            </p>
-          ) : stores.length === 0 ? (
+          {stores.length === 0 ? (
             <div className="mt-6 border border-dashed border-ink px-5 py-8 text-center animate-stamp">
               <p className="caps text-label font-semibold text-heading">No stores connected</p>
               <p className="mx-auto mt-2 max-w-sm text-label text-muted">
@@ -381,7 +364,6 @@ export function Profile() {
             ref={connectButton}
             type="button"
             className="btn w-full sm:w-fit"
-            disabled={loading}
             onClick={() => {
               setConnecting(true);
               requestAnimationFrame(() => document.getElementById(shopId)?.focus());

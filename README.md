@@ -4,7 +4,7 @@
 
 - `/`: shopper-facing home page with an example conversation and the `shopping-mcp.json` download.
 - `/docs`: how to add Shopping MCP to an assistant.
-- `/profile`: a signed-in user's account and connected stores: status, product count, last sync, **Sync now**, **Disconnect** (stops the store and hides its products, after an inline confirmation), and **Connect store**. One user can own several stores. Signed out, it redirects to `/login`.
+- `/profile`: a signed-in user's account and connected stores: status, product count, last sync, **Sync now**, **Disconnect** (stops the store and hides its products, after an inline confirmation), and **Connect store**. One user can own several stores. Protected: signed out, it redirects to the home page.
 - `/login`: Continue with Google, or an email magic link; shared by the dashboard and MCP clients' OAuth.
 
 This is a development app: auth and data isolation are not ready for public deployment. Product context lives in `PRODUCT.md`; domain terms (Merchant, MerchantConnection, Store connection, …) in `CONTEXT.md`.
@@ -178,7 +178,7 @@ Bad signatures get 401; processing errors get 503 so Shopify retries.
 
 Do not expose this development app to the public internet without auth. Connector responses are treated as untrusted data; only normalized, validated values reach storage. Shopify credentials are encrypted with `CREDENTIALS_KEY` (AES-256-GCM), never stored in connection config.
 
-`apps/web` contains Next.js UI. `packages/commerce` and `packages/database` contain backend implementation. Timestamps in responses are ISO strings. Boundary tests check package subpaths, relative imports, and web aliases: shared packages cannot import apps, commerce cannot import HTTP/MCP frameworks, and web and contracts cannot import backend packages.
+`apps/web` contains Next.js UI. `packages/commerce` and `packages/database` contain backend implementation. Timestamps in responses are ISO strings. Boundary tests check package subpaths, relative imports, and web aliases: shared packages cannot import apps, commerce cannot import HTTP/MCP frameworks, and web and contracts cannot import backend packages (Next.js's own APIs, such as `next/headers`, are allowed in web).
 
 ## Tests
 

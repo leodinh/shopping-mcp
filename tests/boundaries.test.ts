@@ -13,7 +13,8 @@ const forbiddenPackages = [
   "@shopping-mcp/api",
   "@shopping-mcp/worker",
 ];
-const forbiddenModules = ["pg", "next/headers", "next/cache"];
+// Next.js APIs (next/headers, next/cache, …) are the web framework, not backend: allowed.
+const forbiddenModules = ["pg"];
 
 async function sourceFiles(directory: string): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });

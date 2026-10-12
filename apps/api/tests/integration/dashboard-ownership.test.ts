@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import request from "supertest";
 import { webOrigin } from "@shopping-mcp/config";
+import { sellerResponseSchema } from "@shopping-mcp/contracts";
 import { database, merchantConnections, merchants, pool } from "@shopping-mcp/database";
 import { createApi } from "../../src/create-api";
 
@@ -46,10 +47,12 @@ async function signIn(email: string) {
   return cookies.map((cookie) => cookie.split(";")[0]).join("; ");
 }
 
+/** The dashboard for a session cookie; null when the API refuses it (401). */
 async function me(cookie: string) {
   const response = await request(app.getHttpServer()).get("/api/seller").set("Cookie", cookie);
-  assert.equal(response.status, 200);
-  return response.body as { user: { id: string } | null; stores: Array<{ id: string }> };
+  if (response.status === 401) return null;
+  assert.equal(response.status, 200, response.text);
+  return sellerResponseSchema.parse(response.body);
 }
 
 async function storeFor(userId: string) {
@@ -81,18 +84,18 @@ async function enabled(merchantId: string) {
 test("each signed-in User sees only their own stores and can act only on them", async () => {
   const alice = await signIn(emails.alice);
   const bob = await signIn(emails.bob);
-  const aliceId = (await me(alice)).user!.id;
-  const bobId = (await me(bob)).user!.id;
+  const aliceId = (await me(alice))!.user.id;
+  const bobId = (await me(bob))!.user.id;
   assert.notEqual(aliceId, bobId);
   const aliceStore = await storeFor(aliceId);
   const bobStore = await storeFor(bobId);
 
   assert.deepEqual(
-    (await me(alice)).stores.map((store) => store.id),
+    (await me(alice))!.stores.map((store) => store.id),
     [aliceStore],
   );
   assert.deepEqual(
-    (await me(bob)).stores.map((store) => store.id),
+    (await me(bob))!.stores.map((store) => store.id),
     [bobStore],
   );
 
@@ -110,25 +113,33 @@ test("each signed-in User sees only their own stores and can act only on them", 
   assert.equal(await enabled(bobStore), true);
 });
 
-test("signed out, the dashboard has no user and every store action is refused", async () => {
-  assert.deepEqual(await me(""), { user: null, stores: [] });
+test("signed out or with a forged cookie, the dashboard and every store action are refused", async () => {
+  assert.equal(await me(""), null);
   const someone = randomUUID();
   for (const action of ["sync", "disconnect"]) {
     assert.equal((await post(`/api/seller/stores/${someone}/${action}`)).status, 401, action);
   }
   const forged = "better-auth.session_token=forged.signature";
-  assert.deepEqual(await me(forged), { user: null, stores: [] });
+  assert.equal(await me(forged), null);
   assert.equal((await post(`/api/seller/stores/${someone}/sync`, forged)).status, 401);
 });
 
 test("signing out ends the session", async () => {
   const session = await signIn(emails.alice);
-  assert.ok((await me(session)).user);
+  assert.ok(await me(session));
   const out = await request(app.getHttpServer())
     .post("/api/auth/sign-out")
     .set("Origin", webOrigin())
     .set("Cookie", session)
     .send({});
   assert.equal(out.status, 200, out.text);
-  assert.equal((await me(session)).user, null);
+  assert.equal(await me(session), null);
+});
+
+test("the dashboard returns the signed-in User's profile in the shared contract", async () => {
+  const { user } = (await me(await signIn(emails.alice)))!;
+  assert.equal(user.email, emails.alice);
+  assert.ok(!Number.isNaN(Date.parse(user.createdAt)));
+  // Signed in by email link only: no linked provider such as google.
+  assert.ok(!user.providers.includes("google"));
 });

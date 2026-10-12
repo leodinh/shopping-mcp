@@ -3,12 +3,12 @@ import assert from "node:assert/strict";
 import request from "supertest";
 import { createApi } from "../src/create-api";
 
-test("GET /api/seller without a session cookie is signed out with no stores", async () => {
+test("GET /api/seller without a session cookie is refused with 401", async () => {
   const app = await createApi();
   try {
     const response = await request(app.getHttpServer()).get("/api/seller");
-    assert.equal(response.status, 200);
-    assert.deepEqual(response.body, { user: null, stores: [] });
+    assert.equal(response.status, 401);
+    assert.equal(response.headers["cache-control"], "private, no-store");
   } finally {
     await app.close();
   }

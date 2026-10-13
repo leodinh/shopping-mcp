@@ -9,6 +9,11 @@
 
 This is a development app: auth and data isolation are not ready for public deployment. Product context lives in `PRODUCT.md`; domain terms (Merchant, MerchantConnection, Store connection, …) in `CONTEXT.md`.
 
+More docs in [`docs/`](docs):
+
+- [Authentication](docs/authentication.md): sign-in, sessions, how assistants sign in (CIMD, DCR, tokens), magic-link email, Google, and local vs tunnel profiles.
+- [Development tunnel](docs/development-tunnel.md): exposing local servers over HTTPS through Cloudflare for external assistants and provider callbacks.
+
 ## Local setup
 
 Prerequisites: Node.js 22+, pnpm, PostgreSQL 17+, and a Shopify app for connecting stores (see [Shopify app setup](#shopify-app-setup)).
@@ -31,7 +36,7 @@ Prerequisites: Node.js 22+, pnpm, PostgreSQL 17+, and a Shopify app for connecti
 
 `pnpm dev` starts three processes: the Next.js UI at http://127.0.0.1:3000, the Nest API and MCP server at http://127.0.0.1:3001, and a worker that drains catalog sync every 10s. Start them separately with `pnpm dev:web`, `pnpm dev:api`, and `pnpm dev:worker`.
 
-Then open http://localhost:3000/login and sign in. Without `RESEND_API_KEY` the magic link is printed in the API log; with it, it's emailed. Then connect a Shopify store from `/profile`.
+Then open http://localhost:3000/login and sign in. Without `RESEND_API_KEY` the magic link is printed in the API log; with it, it's emailed. Then connect a Shopify store from `/profile`. Details in [docs/authentication.md](docs/authentication.md).
 
 ## Configuration
 

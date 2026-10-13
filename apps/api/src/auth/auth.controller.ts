@@ -4,7 +4,7 @@ import type { Request, Response } from "express";
 import { getOwnedStore, listStoresForUser } from "@shopping-mcp/commerce/merchants";
 import { disconnectStore } from "@shopping-mcp/commerce/store-connection";
 import { enqueueSync } from "@shopping-mcp/commerce/sync";
-import { currentUser } from "./current-user";
+import { currentProfile, currentUser } from "./current-user";
 
 /** The seller dashboard: a signed-in User's stores. Every route checks the store is theirs. */
 @Controller("api/seller")
@@ -12,9 +12,9 @@ export class AuthController {
   @Get()
   async current(@Req() req: Request, @Res() res: Response) {
     try {
-      const user = await currentUser(req.headers);
-      const stores = user ? await listStoresForUser(user.id) : [];
-      res.json({ user, stores } satisfies SellerResponse);
+      const user = await currentProfile(req.headers);
+      if (!user) return res.status(401).json({ error: "Sign in to see your profile." });
+      res.json({ user, stores: await listStoresForUser(user.id) } satisfies SellerResponse);
     } catch (error) {
       console.error("Seller dashboard failed", error);
       res.status(503).json({ error: "Store status unavailable." });

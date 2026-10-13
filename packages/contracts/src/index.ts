@@ -3,6 +3,7 @@ export {
   sellerStatusSchema,
   sellerResponseSchema,
   type SellerStatus,
+  type SellerUser,
   type SellerResponse,
 } from "./seller";
 export {

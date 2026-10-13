@@ -10,4 +10,7 @@ export const authClient = createAuthClient({
   baseURL: apiUrl("/api/auth"),
   plugins: [magicLinkClient(), oauthProviderClient()],
   fetchOptions: { credentials: "include" },
+  sessionOptions: {
+    refetchOnWindowFocus: true,
+  },
 });

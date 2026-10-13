@@ -13,17 +13,21 @@ const store = {
   lastError: null,
   productCount: 0,
 };
-const user = { id: "00000000-0000-4000-8000-000000000002", email: "alice@example.test" };
+const user = {
+  id: "00000000-0000-4000-8000-000000000002",
+  email: "alice@example.test",
+  name: null,
+  createdAt: "2026-09-01T09:00:00.000Z",
+  providers: ["google"],
+};
 
 test("seller responses carry the signed-in user and their stores, with ISO timestamps", () => {
   assert.deepEqual(sellerResponseSchema.parse({ user, stores: [store] }), {
     user,
     stores: [store],
   });
-  assert.deepEqual(sellerResponseSchema.parse({ user: null, stores: [] }), {
-    user: null,
-    stores: [],
-  });
+  // Signed out is a 401 from the API, never a response without a user.
+  assert.equal(sellerResponseSchema.safeParse({ user: null, stores: [] }).success, false);
   for (const lastSyncedAt of [new Date(), "not-a-date"]) {
     const response = { user, stores: [{ ...store, lastSyncedAt }] };
     assert.equal(sellerResponseSchema.safeParse(response).success, false);

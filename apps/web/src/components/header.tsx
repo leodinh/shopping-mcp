@@ -19,7 +19,10 @@ export function Header() {
         />
         <span className="truncate">Shopping with Agent</span>
       </Link>
-      <nav aria-label="Primary" className="flex shrink-0 items-center gap-6 has-[[data-pending]]:invisible sm:gap-8">
+      <nav
+        aria-label="Primary"
+        className="flex shrink-0 items-center gap-6 has-[[data-pending]]:invisible sm:gap-8"
+      >
         <Link href="/docs" className="btn-link">
           Docs
         </Link>

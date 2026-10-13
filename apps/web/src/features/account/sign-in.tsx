@@ -116,9 +116,6 @@ export function SignIn() {
           </div>
         ) : (
           <>
-            <p className="mt-3 text-label text-muted">
-              No password. One account for the dashboard and your assistants.
-            </p>
             <form noValidate onSubmit={sendLink} className="mt-8 flex flex-col gap-2">
               <label htmlFor={emailId} className="field-label">
                 Email address
@@ -136,7 +133,11 @@ export function SignIn() {
                 disabled={busy}
                 onInput={() => fieldError && setFieldError("")}
               />
-              <p id={emailErrorId} role="alert" className="min-h-5 text-label font-medium text-heading">
+              <p
+                id={emailErrorId}
+                role="alert"
+                className="min-h-5 text-label font-medium text-heading"
+              >
                 {fieldError || error}
               </p>
               <button className="btn w-full" disabled={busy}>

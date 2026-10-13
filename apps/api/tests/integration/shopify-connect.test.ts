@@ -50,6 +50,7 @@ test("a signed-in User connects a shop over HTTP and returns to their profile ow
         expiresAt: null,
         refreshTokenExpiresAt: null,
       }),
+      verifyShop: async () => ({ gid: "gid://shopify/Shop/1", name: "UI Shop" }),
     };
     const started = await handleShopifyConnect(
       connectRequest("ui-shop.myshopify.com"),
@@ -84,8 +85,8 @@ test("a signed-in User connects a shop over HTTP and returns to their profile ow
 
     const stores = await listStoresForUser(alice.id, db);
     assert.deepEqual(
-      stores.map((store) => store.slug),
-      ["ui-shop.myshopify.com"],
+      stores.map((store) => [store.slug, store.name]),
+      [["ui-shop.myshopify.com", "UI Shop"]],
     );
   } finally {
     await drop();

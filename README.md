@@ -147,13 +147,15 @@ A MerchantConnection stores the connector type, non-secret configuration, the sh
 `@shopping-mcp/commerce/store-connection` owns the Shopify OAuth lifecycle behind two operations:
 
 1. **Begin** (signed-in User only): validate the `*.myshopify.com` domain, reject a shop owned by another User (`shop_taken`), and store a single-use OAuth attempt for the User and shop, tied to the browser by an `oauth_binding` cookie (10 minutes). Nothing is created for the shop yet.
-2. **Complete**: verify the callback HMAC, consume the attempt, exchange the code for tokens outside any DB transaction, then in one transaction create the Merchant for the User, or **claim** it if it predates Users, store encrypted credentials, and request a sync. The browser returns to `/profile`; Shopify never signs anyone in.
+2. **Complete**: verify the callback HMAC, consume the attempt, exchange the code for tokens and **verify** the new token with one Admin GraphQL `shop { id name }` call, both outside any DB transaction. Then in one transaction create the Merchant for the User, or **claim** it if it predates Users, set its name to the shop's name, and store encrypted credentials with the shop GID and `verified_at`. Reconnecting a disconnected store also reactivates its hidden products. Connecting never syncs the catalog: the store is ready at once. The browser returns to `/profile`; Shopify never signs anyone in.
 
 Both return typed outcomes (`{ ok: false, reason }`); the API maps each reason to an HTTP status. Connecting while signed out is a 401. A failed token exchange uses up the attempt; the User starts again. **Disconnect** (dashboard) and the `app/uninstalled` webhook share one path: disable the connection, drop its credentials, hide its products.
 
 ### Sync semantics
 
-1. Enqueue a `sync_runs` row (`pending`) on Store connection or seller retry. Dedup if pending/running already exists.
+Temporary: catalog sync only runs when a seller presses **Sync now** on `/profile`, as a bridge until Phase 4 queries Shopify directly and removes it (#25).
+
+1. Enqueue a `sync_runs` row (`pending`) on **Sync now**. Dedup if pending/running already exists.
 2. The worker claims one run every 10s (`running`, or stale `running` older than 10 minutes), then:
    1. Acquire a PostgreSQL advisory lock for the connection; concurrent sync attempts fail fast.
    2. The connector prepares its credentials. Shopify access tokens expire after an hour: within 5 minutes of expiry the connector refreshes them and stores the rotated tokens immediately, before fetching. A rejected refresh fails with "Shopify access expired. Reconnect your store."
@@ -173,7 +175,7 @@ PostgreSQL maintains an English `tsvector` from product name and description, in
 
 `POST /api/webhooks/shopify` verifies `X-Shopify-Hmac-Sha256` against the raw request body, then acts on `X-Shopify-Topic`:
 
-- `app/uninstalled`: disable the connection, delete its credentials, and mark its products inactive so the store drops out of search at once. Reconnecting re-enables it, and the sync it requests reactivates the products.
+- `app/uninstalled`: disable the connection, delete its credentials, and mark its products inactive so the store drops out of search at once. Reconnecting re-enables it and reactivates the products.
 - `shop/redact` (48h after uninstall): delete the Merchant and everything held for the shop.
 - `customers/data_request`, `customers/redact`: acknowledged; no customer data is stored.
 
@@ -206,12 +208,12 @@ The API and worker run TypeScript through `tsx`; they do not emit build artifact
 ## Troubleshooting
 
 - **`redirect_uri is not whitelisted`** from Shopify: add `SHOPIFY_REDIRECT_URI`, exactly, to the Shopify app's allowed redirect URLs and release the version ([Shopify app setup](#shopify-app-setup)).
-- **"Shopify access expired. Reconnect your store."** on `/profile`: the refresh token expired (90 days without a sync) or the app was uninstalled. Connect the same shop again.
+- **"Shopify access expired. Reconnect your store."** on `/profile`: the refresh token expired (Shopify tokens are refreshed only when used, so 90 days without a sync) or the app was uninstalled. Connect the same shop again.
 - **"Could not send the sign-in link"**: the API log shows Resend's reason. With the default test sender, Resend only delivers to your own Resend account email; verify a domain in Resend and set `EMAIL_FROM` to an address on it.
 - **`CREDENTIALS_KEY is required`**: set it in `.env`; see [Configuration](#configuration).
 - **Catalog setup screen / 503**: check `.env`, database health, and `pnpm run db:migrate`.
 - **Sync fetch failed**: check the Shopify connection and scopes. The previous catalog remains intact.
-- **No products**: connect a Shopify store, then wait for the worker or use Retry sync on `/profile`.
+- **No products**: connecting doesn't import the catalog. Press **Sync now** on `/profile`, then wait for the worker (every 10s).
 - **"Shopify app uninstalled. Reconnect your store."** on `/profile`: the app was uninstalled from the shop. Connect it again.
 - **Database connection refused**: make sure `DATABASE_URL` matches your PostgreSQL host and port.
 - **Migration ledger errors on an old database**: databases built by the old SQL runner must be recreated before `pnpm run db:migrate`.

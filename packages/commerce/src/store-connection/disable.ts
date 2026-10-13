@@ -3,8 +3,7 @@ import { merchantConnections, products, type Database } from "@shopping-mcp/data
 
 /**
  * Turns a store connection off: drops its credentials, stops it syncing, and hides its products
- * from search. Reconnecting the shop re-enables it, and the sync that requests reactivates the
- * products. Returns the Merchant whose connection was disabled, if any matched.
+ * from search. Reconnecting the shop re-enables it and brings the products back. Returns the Merchant whose connection was disabled, if any matched.
  */
 export async function disableConnection(where: SQL, reason: string, db: Database) {
   const [connection] = await db

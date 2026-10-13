@@ -58,6 +58,10 @@ export const merchantConnections = pgTable(
     scopes: text("scopes"),
     tokenExpiresAt: timestamptz("token_expires_at"),
     refreshTokenExpiresAt: timestamptz("refresh_token_expires_at"),
+    /** Shopify's own shop ID (`gid://shopify/Shop/…`), read when connecting. */
+    shopGid: text("shop_gid"),
+    /** When the shop last answered with the connection's token (set on connect). */
+    verifiedAt: timestamptz("verified_at"),
     createdAt: timestamptz("created_at").notNull().defaultNow(),
   },
   (table) => [

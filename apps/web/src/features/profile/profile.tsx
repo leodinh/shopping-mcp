@@ -12,15 +12,6 @@ import { apiUrl } from "@/lib/api/origin";
 import { Slip, useLeave } from "../account/slip";
 import { fetchSeller } from "./api";
 
-type Status = "Connected" | "Awaiting sync" | "Sync failed" | "Disconnected";
-
-function statusOf(store: SellerStatus): Status {
-  if (!store.enabled) return "Disconnected";
-  if (store.lastError) return "Sync failed";
-  if (!store.lastSyncedAt) return "Awaiting sync";
-  return "Connected";
-}
-
 const when = (value: string | Date) =>
   new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(
     new Date(value),
@@ -204,7 +195,8 @@ export function Profile({ initial }: { initial: SellerResponse | null }) {
           ) : (
             <ol className="mt-6 flex flex-col">
               {stores.map((store, index) => {
-                const status = statusOf(store);
+                const connected = store.status === "connected";
+                const status = connected ? "Connected" : "Disconnected";
                 return (
                   <li
                     key={store.id}
@@ -221,7 +213,7 @@ export function Profile({ initial }: { initial: SellerResponse | null }) {
                       <span
                         key={status}
                         className={`caps shrink-0 whitespace-nowrap text-right sm:w-[17ch] text-label font-medium animate-stamp ${
-                          status === "Connected" ? "text-heading" : "text-muted"
+                          connected ? "text-heading" : "text-muted"
                         }`}
                       >
                         [{status}]
@@ -230,8 +222,11 @@ export function Profile({ initial }: { initial: SellerResponse | null }) {
                     <div className="mt-1.5 pl-[calc(2ch+1rem)]">
                       <p className="truncate text-label text-muted">{store.slug}</p>
                       <p className="caps mt-1 text-label text-muted">
-                        Shopify · {store.productCount} products
-                        {store.lastSyncedAt ? ` · Synced ${when(store.lastSyncedAt)}` : ""}
+                        Shopify
+                        {/* Temporary until Phase 4: only stores synced by "Sync now" have these. */}
+                        {store.lastSyncedAt
+                          ? ` · ${store.productCount} products · Synced ${when(store.lastSyncedAt)}`
+                          : ""}
                       </p>
                       {store.lastError ? (
                         <p className="mt-2 text-label text-heading">{store.lastError}</p>
@@ -263,7 +258,7 @@ export function Profile({ initial }: { initial: SellerResponse | null }) {
                         </div>
                       ) : (
                         <div className="mt-4 flex flex-wrap gap-x-6 gap-y-3">
-                          {store.enabled ? (
+                          {connected ? (
                             <>
                               <button
                                 type="button"

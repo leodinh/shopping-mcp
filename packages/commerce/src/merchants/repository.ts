@@ -51,7 +51,13 @@ export async function getOwnedStore(userId: string, merchantId: string, db: Data
 }
 
 function toSellerStatus(
-  row: Omit<SellerStatus, "lastSyncedAt"> & { lastSyncedAt: Date | null },
+  row: Omit<SellerStatus, "lastSyncedAt" | "status"> & { lastSyncedAt: Date | null },
 ): SellerStatus {
-  return { ...row, lastSyncedAt: row.lastSyncedAt?.toISOString() ?? null };
+  return {
+    ...row,
+    // Only a successful connect (token exchanged and shop verified) enables a connection;
+    // disconnect and uninstall disable it. Catalog sync has no say in the status.
+    status: row.enabled === true ? "connected" : "disconnected",
+    lastSyncedAt: row.lastSyncedAt?.toISOString() ?? null,
+  };
 }

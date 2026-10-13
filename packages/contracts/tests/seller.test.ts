@@ -4,6 +4,7 @@ import { sellerResponseSchema } from "@shopping-mcp/contracts";
 
 const store = {
   id: "00000000-0000-4000-8000-000000000001",
+  status: "disconnected",
   slug: "test.myshopify.com",
   name: "Test",
   connectionId: null,

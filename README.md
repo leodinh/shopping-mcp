@@ -4,7 +4,7 @@
 
 - `/`: shopper-facing home page with an example conversation and the `shopping-mcp.json` download.
 - `/docs`: how to add Shopping MCP to an assistant.
-- `/profile`: a signed-in user's account and connected stores: status, product count, last sync, **Sync now**, **Disconnect** (stops the store and hides its products, after an inline confirmation), and **Connect store**. One user can own several stores. Protected: signed out, it redirects to the home page.
+- `/profile`: a signed-in user's account and connected stores: status (**Connected** or **Disconnected**, from the connection alone), product count and last sync for stores synced so far, **Sync now** (temporary, until Phase 4), **Disconnect** (stops the store and hides its products, after an inline confirmation), and **Connect store**. One user can own several stores. Protected: signed out, it redirects to the home page.
 - `/login`: Continue with Google, or an email magic link; shared by the dashboard and MCP clients' OAuth.
 
 This is a development app: auth and data isolation are not ready for public deployment. Product context lives in `PRODUCT.md`; domain terms (Merchant, MerchantConnection, Store connection, …) in `CONTEXT.md`.

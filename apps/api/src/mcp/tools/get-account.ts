@@ -36,10 +36,12 @@ export async function runGetAccountTool(
     id: store.id,
     name: store.name,
     shop: store.slug,
-    connected: store.enabled === true,
-    productCount: store.productCount,
-    lastSyncedAt: store.lastSyncedAt,
+    status: store.status,
     lastError: store.lastError,
+    // Temporary until Phase 4 queries Shopify directly: only stores synced by "Sync now" have these.
+    ...(store.lastSyncedAt
+      ? { productCount: store.productCount, lastSyncedAt: store.lastSyncedAt }
+      : {}),
   }));
   // The token's issuer and audience were already checked; this shows who it was issued to.
   return dataResult({

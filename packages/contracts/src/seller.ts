@@ -2,6 +2,8 @@ import { z } from "zod";
 
 export const sellerStatusSchema = z.object({
   id: z.uuid(),
+  /** From the connection alone: connected (enabled, its token proven on connect) or not. */
+  status: z.enum(["connected", "disconnected"]),
   slug: z.string(),
   name: z.string(),
   connectionId: z.uuid().nullable(),

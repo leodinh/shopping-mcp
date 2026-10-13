@@ -142,6 +142,9 @@ test("a signed-in User connects a shop: they own the new Merchant, the shop is v
   const [merchant] = await db.select().from(merchants).where(eq(merchants.id, done.merchantId));
   assert.equal(merchant.name, `Shop ${shop.slice(5, 13)}`);
   // Connecting is READY at once: no catalog sync is requested.
+  const [listed] = await listStoresForUser(alice, db);
+  assert.equal(listed.status, "connected");
+  assert.equal(listed.lastSyncedAt, null);
   const runs = await db.select().from(syncRuns).where(eq(syncRuns.connectionId, connection.id));
   assert.deepEqual(runs, []);
 
@@ -385,6 +388,7 @@ test("only the owner can disconnect a store; disconnecting stops it and hides it
   assert.equal((await connectionOf()).enabled, true);
 
   assert.equal(await disconnectStore(alice, merchantId, db), true);
+  assert.equal((await getOwnedStore(alice, merchantId, db))?.status, "disconnected");
   const connection = await connectionOf();
   assert.equal(connection.enabled, false);
   assert.equal(connection.credentialsEncrypted, null);
@@ -393,6 +397,7 @@ test("only the owner can disconnect a store; disconnecting stops it and hides it
 
   // Reconnecting restores it, products included, without a sync.
   await connect(shop, alice);
+  assert.equal((await getOwnedStore(alice, merchantId, db))?.status, "connected");
   assert.equal((await connectionOf()).enabled, true);
   const [restored] = await db.select().from(products).where(eq(products.merchantId, merchantId));
   assert.equal(restored.active, true);

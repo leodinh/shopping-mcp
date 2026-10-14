@@ -87,8 +87,13 @@ export function shopifyScopes() {
   return process.env.SHOPIFY_SCOPES ?? "read_products";
 }
 
+/**
+ * Shopify's OAuth callback, always on the API's public origin: the browser must come back to the
+ * host that set its `oauth_binding` cookie, or every callback fails as invalid_state. So it isn't
+ * configurable on its own; register this URL in the Shopify app for each origin you run.
+ */
 export function shopifyRedirectUri() {
-  return process.env.SHOPIFY_REDIRECT_URI ?? "";
+  return `${apiOrigin()}/api/connections/shopify/callback`;
 }
 
 /** Where a User manages their account and connected stores. */

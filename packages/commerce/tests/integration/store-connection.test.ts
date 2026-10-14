@@ -25,7 +25,7 @@ process.env.CREDENTIALS_KEY = "test-credentials-key-32-characters-min";
 process.env.SHOPIFY_API_KEY = "test-key";
 process.env.SHOPIFY_API_SECRET = "test-secret";
 process.env.SHOPIFY_SCOPES = "read_products";
-process.env.SHOPIFY_REDIRECT_URI = "http://127.0.0.1:3001/api/connections/shopify/callback";
+process.env.API_ORIGIN = "http://localhost:3001";
 
 let db: Database;
 let drop: () => Promise<void>;
@@ -104,7 +104,7 @@ test("a signed-in User connects a shop: they own the new Merchant and the shop i
   const started = await begin(` https://${shop.toUpperCase()}/admin `, alice);
   assert.equal(
     started.authorizationUrl,
-    `https://${shop}/admin/oauth/authorize?client_id=test-key&scope=read_products&redirect_uri=http%3A%2F%2F127.0.0.1%3A3001%2Fapi%2Fconnections%2Fshopify%2Fcallback&state=${started.state}`,
+    `https://${shop}/admin/oauth/authorize?client_id=test-key&scope=read_products&redirect_uri=http%3A%2F%2Flocalhost%3A3001%2Fapi%2Fconnections%2Fshopify%2Fcallback&state=${started.state}`,
   );
   assert.match(started.browserBinding, /^[0-9a-f]{32}$/);
   const ttl = started.expiresAt.getTime() - Date.now();

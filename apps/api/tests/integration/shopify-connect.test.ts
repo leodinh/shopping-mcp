@@ -11,7 +11,7 @@ process.env.CREDENTIALS_KEY = "test-credentials-key-32-characters-min";
 process.env.SHOPIFY_API_KEY = "test-key";
 process.env.SHOPIFY_API_SECRET = "test-secret";
 process.env.SHOPIFY_SCOPES = "read_products";
-process.env.SHOPIFY_REDIRECT_URI = "http://127.0.0.1:3001/api/connections/shopify/callback";
+process.env.API_ORIGIN = "http://localhost:3001";
 process.env.WEB_ORIGIN = "http://localhost:3000";
 
 function signedCallbackQuery(params: Record<string, string>) {

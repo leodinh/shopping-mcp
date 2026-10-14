@@ -49,7 +49,6 @@ All variables live in the root `.env`.
 | `CREDENTIALS_KEY`                           | yes      | Encrypts stored Shopify tokens. **Must not change after use** (see below).                                                                                                                     |
 | `SHOPIFY_API_KEY`                           | yes      | Your Shopify app's client ID.                                                                                                                                                                  |
 | `SHOPIFY_API_SECRET`                        | yes      | Your Shopify app's client secret. Verifies OAuth callbacks (HMAC) and exchanges tokens.                                                                                                        |
-| `SHOPIFY_REDIRECT_URI`                      | yes      | OAuth callback, `http://127.0.0.1:3001/api/connections/shopify/callback` locally. Must be allowed in the Shopify app.                                                                          |
 | `SHOPIFY_SCOPES`                            | no       | Requested scopes; default `read_products`.                                                                                                                                                     |
 | `API_PORT`                                  | no       | API port; default `3001`.                                                                                                                                                                      |
 | `BETTER_AUTH_SECRET`                        | yes      | Signs Better Auth sessions and OAuth state (dashboard and MCP sign-in). Generate separately.                                                                                                   |
@@ -68,14 +67,14 @@ Generate each secret separately, e.g. `openssl rand -hex 32`. Changing `CREDENTI
 One Shopify app serves every merchant; merchants never configure anything. In your app's settings (Dev Dashboard at dev.shopify.com, or the Partner Dashboard for older apps):
 
 1. Copy the client ID and secret into `SHOPIFY_API_KEY` and `SHOPIFY_API_SECRET`.
-2. Add `SHOPIFY_REDIRECT_URI` to the allowed redirect URLs, character for character (`127.0.0.1` ≠ `localhost`, `http` ≠ `https`, port and trailing slash matter). On the Dev Dashboard, settings live in a version: create and **release** it.
+2. Add `<API_ORIGIN>/api/connections/shopify/callback` to the allowed redirect URLs, character for character (`127.0.0.1` ≠ `localhost`, `http` ≠ `https`, port and trailing slash matter): `http://localhost:3001/api/connections/shopify/callback` locally, `https://shopping-api-dev.leodev.online/api/connections/shopify/callback` on the tunnel. The callback always follows `API_ORIGIN`, because the browser must return to the host that set its `oauth_binding` cookie. On the Dev Dashboard, settings live in a version: create and **release** it.
 3. Add one redirect URL per environment you run (local, staging, production), or use a separate app per environment.
 4. Only stores the app's distribution allows can connect: custom distribution limits installs to specific stores; public distribution allows any store.
 5. Point the mandatory compliance webhooks (`customers/data_request`, `customers/redact`, `shop/redact`) at `https://<api-host>/api/webhooks/shopify`. They can only be set in app settings, not through the API, and public distribution requires them.
 
-The `app/uninstalled` webhook needs no setup: after each connect, the API subscribes the shop to the same endpoint, whose URL comes from `SHOPIFY_REDIRECT_URI`. Shopify only delivers to HTTPS, so with a plain `http://` redirect URI (local development) the subscription is skipped with a warning.
+The `app/uninstalled` webhook needs no setup: after each connect, the API subscribes the shop to the same endpoint, whose URL comes from `API_ORIGIN`. Shopify only delivers to HTTPS, so with a plain `http://` `API_ORIGIN` (local development) the subscription is skipped with a warning.
 
-If the dashboard rejects an `http://` URL, expose the API through an HTTPS tunnel (`cloudflared tunnel --url http://127.0.0.1:3001` or `ngrok http 3001`) and use that URL for both the dashboard and `SHOPIFY_REDIRECT_URI`.
+If the dashboard rejects an `http://` URL, use the HTTPS tunnel ([docs/development-tunnel.md](docs/development-tunnel.md)): run with `API_ORIGIN` set to the tunnel and register its callback.
 
 ## Commands
 
@@ -199,7 +198,7 @@ The API runs TypeScript through `tsx`; they do not emit build artifacts. `pnpm b
 
 ## Troubleshooting
 
-- **`redirect_uri is not whitelisted`** from Shopify: add `SHOPIFY_REDIRECT_URI`, exactly, to the Shopify app's allowed redirect URLs and release the version ([Shopify app setup](#shopify-app-setup)).
+- **`redirect_uri is not whitelisted`** from Shopify: add `<API_ORIGIN>/api/connections/shopify/callback`, exactly, to the Shopify app's allowed redirect URLs and release the version ([Shopify app setup](#shopify-app-setup)).
 - **"Shopify access expired. Reconnect your store."** on `/profile`: the refresh token expired (Shopify tokens are refreshed only when used, so 90 days without a search reaching the store) or the app was uninstalled. The store shows **Disconnected**. Connect the same shop again.
 - **"Could not send the sign-in link"**: the API log shows Resend's reason. With the default test sender, Resend only delivers to your own Resend account email; verify a domain in Resend and set `EMAIL_FROM` to an address on it.
 - **`CREDENTIALS_KEY is required`**: set it in `.env`; see [Configuration](#configuration).

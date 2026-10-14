@@ -9,9 +9,8 @@ export const sellerStatusSchema = z.object({
   connectionId: z.uuid().nullable(),
   connectorType: z.literal("shopify").nullable(),
   enabled: z.boolean().nullable(),
-  lastSyncedAt: z.iso.datetime().nullable(),
+  /** Why the store was disconnected (disconnect, uninstall, expired access), when it was. */
   lastError: z.string().nullable(),
-  productCount: z.number().int().nonnegative(),
 });
 /** What the profile shows about the signed-in User. `providers` lists linked sign-in providers. */
 export const sellerUserSchema = z.object({

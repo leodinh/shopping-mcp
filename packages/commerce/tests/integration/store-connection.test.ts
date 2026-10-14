@@ -15,8 +15,6 @@ import {
   merchantConnections,
   merchants,
   oauthAttempts,
-  products,
-  syncRuns,
   user,
   type Database,
 } from "@shopping-mcp/database";
@@ -100,7 +98,7 @@ async function ownerOf(merchantId: string) {
   return row.userId;
 }
 
-test("a signed-in User connects a shop: they own the new Merchant, the shop is verified, nothing syncs", async () => {
+test("a signed-in User connects a shop: they own the new Merchant and the shop is verified", async () => {
   const alice = await newUser();
   const shop = uniqueShop();
   const started = await begin(` https://${shop.toUpperCase()}/admin `, alice);
@@ -141,12 +139,9 @@ test("a signed-in User connects a shop: they own the new Merchant, the shop is v
   assert.ok(connection.verifiedAt);
   const [merchant] = await db.select().from(merchants).where(eq(merchants.id, done.merchantId));
   assert.equal(merchant.name, `Shop ${shop.slice(5, 13)}`);
-  // Connecting is READY at once: no catalog sync is requested.
+  // Connecting is READY at once: nothing is imported, the store is searched live.
   const [listed] = await listStoresForUser(alice, db);
   assert.equal(listed.status, "connected");
-  assert.equal(listed.lastSyncedAt, null);
-  const runs = await db.select().from(syncRuns).where(eq(syncRuns.connectionId, connection.id));
-  assert.deepEqual(runs, []);
 
   const replay = await completeStoreConnection(
     callback(shop, started.state),
@@ -363,20 +358,10 @@ test("complete subscribes the uninstall webhook, and a failed subscription does 
   assert.ok(result.ok);
 });
 
-test("only the owner can disconnect a store; disconnecting stops it and hides its products", async () => {
+test("only the owner can disconnect a store; disconnecting stops search reaching it", async () => {
   const alice = await newUser();
   const shop = uniqueShop();
   const merchantId = await connect(shop, alice);
-  await db.insert(products).values({
-    merchantId,
-    externalId: "mug",
-    name: "Stone mug",
-    priceMinor: 1200,
-    currency: "USD",
-    inventory: 3,
-    productUrl: `https://${shop}/products/mug`,
-  });
-
   assert.equal(await disconnectStore(await newUser(), merchantId, db), false);
   const connectionOf = async () =>
     (
@@ -392,33 +377,9 @@ test("only the owner can disconnect a store; disconnecting stops it and hides it
   const connection = await connectionOf();
   assert.equal(connection.enabled, false);
   assert.equal(connection.credentialsEncrypted, null);
-  const [product] = await db.select().from(products).where(eq(products.merchantId, merchantId));
-  assert.equal(product.active, false);
 
-  // Reconnecting restores it, products included, without a sync.
+  // Reconnecting restores it.
   await connect(shop, alice);
   assert.equal((await getOwnedStore(alice, merchantId, db))?.status, "connected");
   assert.equal((await connectionOf()).enabled, true);
-  const [restored] = await db.select().from(products).where(eq(products.merchantId, merchantId));
-  assert.equal(restored.active, true);
-});
-
-test("re-authorizing a connected store keeps products the store removed hidden", async () => {
-  const alice = await newUser();
-  const shop = uniqueShop();
-  const merchantId = await connect(shop, alice);
-  // A sync marked this one inactive because the store removed it.
-  await db.insert(products).values({
-    merchantId,
-    externalId: "gone",
-    name: "Retired mug",
-    priceMinor: 1200,
-    currency: "USD",
-    inventory: 0,
-    productUrl: `https://${shop}/products/gone`,
-    active: false,
-  });
-  await connect(shop, alice);
-  const [product] = await db.select().from(products).where(eq(products.merchantId, merchantId));
-  assert.equal(product.active, false);
 });

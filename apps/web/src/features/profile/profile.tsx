@@ -12,11 +12,6 @@ import { apiUrl } from "@/lib/api/origin";
 import { Slip, useLeave } from "../account/slip";
 import { fetchSeller } from "./api";
 
-const when = (value: string | Date) =>
-  new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(
-    new Date(value),
-  );
-
 const day = (value: string | Date) =>
   new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(value));
 
@@ -71,12 +66,12 @@ export function Profile({ initial }: { initial: SellerResponse | null }) {
     }
   }
 
-  async function act(store: SellerStatus, action: "sync" | "disconnect") {
-    // Which store and which action, so only the clicked control reads as in progress.
-    setBusy(`${store.id}:${action}`);
+  async function disconnect(store: SellerStatus) {
+    // Which store, so only the clicked control reads as in progress.
+    setBusy(`${store.id}:disconnect`);
     setNotice("");
     try {
-      const response = await fetch(apiUrl(`/api/seller/stores/${store.id}/${action}`), {
+      const response = await fetch(apiUrl(`/api/seller/stores/${store.id}/disconnect`), {
         method: "POST",
         credentials: "include",
       });
@@ -85,9 +80,7 @@ export function Profile({ initial }: { initial: SellerResponse | null }) {
           errorFrom(await response.json().catch(() => null)) ?? "That did not work. Try again.",
         );
       } else {
-        setNotice(
-          action === "sync" ? `Sync requested for ${store.name}.` : `${store.name} disconnected.`,
-        );
+        setNotice(`${store.name} disconnected.`);
       }
       await reload();
     } catch {
@@ -221,14 +214,8 @@ export function Profile({ initial }: { initial: SellerResponse | null }) {
                     </div>
                     <div className="mt-1.5 pl-[calc(2ch+1rem)]">
                       <p className="truncate text-label text-muted">{store.slug}</p>
-                      <p className="caps mt-1 text-label text-muted">
-                        Shopify
-                        {/* Temporary until Phase 4: only stores synced by "Sync now" have these. */}
-                        {store.lastSyncedAt
-                          ? ` · ${store.productCount} products · Synced ${when(store.lastSyncedAt)}`
-                          : ""}
-                      </p>
-                      {store.lastError ? (
+                      <p className="caps mt-1 text-label text-muted">Shopify</p>
+                      {!connected && store.lastError ? (
                         <p className="mt-2 text-label text-heading">{store.lastError}</p>
                       ) : null}
 
@@ -244,7 +231,7 @@ export function Profile({ initial }: { initial: SellerResponse | null }) {
                             type="button"
                             className="btn-link"
                             disabled={busy !== null}
-                            onClick={() => void act(store, "disconnect")}
+                            onClick={() => void disconnect(store)}
                           >
                             {busy === `${store.id}:disconnect` ? "Disconnecting…" : "Confirm"}
                           </button>
@@ -259,24 +246,14 @@ export function Profile({ initial }: { initial: SellerResponse | null }) {
                       ) : (
                         <div className="mt-4 flex flex-wrap gap-x-6 gap-y-3">
                           {connected ? (
-                            <>
-                              <button
-                                type="button"
-                                className="btn-link"
-                                disabled={busy !== null}
-                                onClick={() => void act(store, "sync")}
-                              >
-                                {busy === `${store.id}:sync` ? "Requesting…" : "Sync now"}
-                              </button>
-                              <button
-                                type="button"
-                                className="btn-link"
-                                disabled={busy !== null}
-                                onClick={() => setConfirming(store.id)}
-                              >
-                                Disconnect
-                              </button>
-                            </>
+                            <button
+                              type="button"
+                              className="btn-link"
+                              disabled={busy !== null}
+                              onClick={() => setConfirming(store.id)}
+                            >
+                              Disconnect
+                            </button>
                           ) : (
                             <button
                               type="button"

@@ -43,6 +43,13 @@
       "when": 1791925922623,
       "tag": "0005_fluffy_ezekiel",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791937484713,
+      "tag": "0006_medical_leader",
+      "breakpoints": true
     }
   ]
 }

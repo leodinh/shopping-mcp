@@ -95,3 +95,9 @@ export function shopifyRedirectUri() {
 export function profileUrl() {
   return `${webOrigin()}/profile`;
 }
+
+/** How long a search waits for one store before reporting it unavailable; default 5 seconds. */
+export function searchStoreTimeoutMs() {
+  const value = Number(process.env.SEARCH_STORE_TIMEOUT_MS ?? 5000);
+  return Number.isInteger(value) && value > 0 ? value : 5000;
+}

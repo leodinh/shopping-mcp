@@ -1,9 +1,10 @@
 import { z } from "zod";
+import { productIdSchema } from "@shopping-mcp/contracts";
 import { getCheckout } from "@shopping-mcp/commerce/catalog";
 import { catalogToolError, dataResult, textResult } from "./responses";
 
 export const getCheckoutInput = z.object({
-  productId: z.uuid(),
+  productId: productIdSchema,
 });
 
 export const getCheckoutTool = {

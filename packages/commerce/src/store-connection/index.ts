@@ -5,7 +5,6 @@ import {
   merchantConnections,
   merchants,
   oauthAttempts,
-  products,
   type Database,
 } from "@shopping-mcp/database";
 import { encryptCredentials } from "../connectors/shopify/credentials";
@@ -125,16 +124,7 @@ export async function completeStoreConnection(
     const merchantId = await db.transaction(async (tx) => {
       const merchantId = await merchantFor(shop, userId, identity.name, tx);
       await tx.update(merchants).set({ name: identity.name }).where(eq(merchants.id, merchantId));
-      const wasDisabled = await connectionDisabled(merchantId, tx);
       await upsertConnection(merchantId, shop, token, identity, tx);
-      // Reconnecting after a disconnect or uninstall brings back the products it hid. Only then:
-      // otherwise inactive products are ones the store removed, and must stay hidden.
-      if (wasDisabled) {
-        await tx
-          .update(products)
-          .set({ active: true, updatedAt: sql`now()` })
-          .where(eq(products.merchantId, merchantId));
-      }
       return merchantId;
     });
     try {
@@ -154,8 +144,7 @@ export async function completeStoreConnection(
 }
 
 /**
- * Disconnects one of the User's stores: stops syncing it, drops its credentials, and hides its
- * products. Returns false when the store doesn't exist or belongs to someone else.
+ * Disconnects one of the User's stores: drops its credentials, so search stops reaching it. Returns false when the store doesn't exist or belongs to someone else.
  */
 export async function disconnectStore(
   userId: string,
@@ -239,14 +228,6 @@ async function consumeAttempt(state: string, shop: string, browserBinding: strin
     )
     .returning({ userId: oauthAttempts.userId });
   return row?.userId ?? null;
-}
-
-async function connectionDisabled(merchantId: string, db: Database) {
-  const [row] = await db
-    .select({ enabled: merchantConnections.enabled })
-    .from(merchantConnections)
-    .where(eq(merchantConnections.merchantId, merchantId));
-  return row?.enabled === false;
 }
 
 async function upsertConnection(

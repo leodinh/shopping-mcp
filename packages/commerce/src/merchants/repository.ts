@@ -1,12 +1,6 @@
-import { and, count, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { SellerStatus } from "@shopping-mcp/contracts";
-import {
-  database,
-  merchantConnections,
-  merchants,
-  products,
-  type Database,
-} from "@shopping-mcp/database";
+import { database, merchantConnections, merchants, type Database } from "@shopping-mcp/database";
 
 const statusSelect = {
   id: merchants.id,
@@ -15,18 +9,14 @@ const statusSelect = {
   connectionId: merchantConnections.id,
   connectorType: merchantConnections.connectorType,
   enabled: merchantConnections.enabled,
-  lastSyncedAt: merchantConnections.lastSyncedAt,
   lastError: merchantConnections.lastError,
-  productCount: sql<number>`cast(${count(products.id)} as int)`,
 };
 
 function statusQuery(db: Database) {
   return db
     .select(statusSelect)
     .from(merchants)
-    .leftJoin(merchantConnections, eq(merchantConnections.merchantId, merchants.id))
-    .leftJoin(products, and(eq(products.merchantId, merchants.id), eq(products.active, true)))
-    .groupBy(merchants.id, merchantConnections.id);
+    .leftJoin(merchantConnections, eq(merchantConnections.merchantId, merchants.id));
 }
 
 export async function listMerchants(slug?: string, db: Database = database()) {
@@ -50,14 +40,11 @@ export async function getOwnedStore(userId: string, merchantId: string, db: Data
   return rows[0] ? toSellerStatus(rows[0]) : null;
 }
 
-function toSellerStatus(
-  row: Omit<SellerStatus, "lastSyncedAt" | "status"> & { lastSyncedAt: Date | null },
-): SellerStatus {
+function toSellerStatus(row: Omit<SellerStatus, "status">): SellerStatus {
   return {
     ...row,
     // Only a successful connect (token exchanged and shop verified) enables a connection;
-    // disconnect and uninstall disable it. Catalog sync has no say in the status.
+    // disconnect, uninstall and a rejected token refresh disable it.
     status: row.enabled === true ? "connected" : "disconnected",
-    lastSyncedAt: row.lastSyncedAt?.toISOString() ?? null,
   };
 }

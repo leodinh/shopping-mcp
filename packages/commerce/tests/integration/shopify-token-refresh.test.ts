@@ -2,15 +2,14 @@ import { after, before, test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
-import type { Pool } from "pg";
 import { decryptCredentials } from "@shopping-mcp/commerce/connectors/shopify";
-import { syncConnection } from "@shopping-mcp/commerce/sync";
 import { merchantConnections, merchants, type Database } from "@shopping-mcp/database";
 import { createTestDatabase } from "@shopping-mcp/database/testing";
 import {
   encryptCredentials,
   type ShopifyCredentials,
 } from "../../src/connectors/shopify/credentials";
+import { shopifyAccessToken, ShopifyReconnectRequired } from "../../src/connectors/shopify/access";
 
 process.env.SESSION_SECRET = "test-session-secret-32-characters-min";
 process.env.CREDENTIALS_KEY = "test-credentials-key-32-characters-min";
@@ -18,9 +17,8 @@ process.env.SHOPIFY_API_KEY = "test-key";
 process.env.SHOPIFY_API_SECRET = "test-secret";
 
 let db: Database;
-let pool: Pool;
 let drop: () => Promise<void>;
-before(async () => ({ db, pool, drop } = await createTestDatabase("token_refresh")));
+before(async () => ({ db, drop } = await createTestDatabase("token_refresh")));
 after(() => drop());
 
 const HOUR = 3600_000;
@@ -54,27 +52,6 @@ async function stored(id: string) {
   return row;
 }
 
-const catalogPage = () =>
-  Response.json({
-    data: {
-      shop: { currencyCode: "USD" },
-      products: {
-        nodes: [
-          {
-            id: "gid://shopify/Product/1",
-            title: "Stone mug",
-            description: "",
-            handle: "stone-mug",
-            onlineStoreUrl: null,
-            images: { nodes: [] },
-            variants: { nodes: [{ price: "12.00", inventoryQuantity: 3 }] },
-          },
-        ],
-        pageInfo: { hasNextPage: false, endCursor: null },
-      },
-    },
-  });
-
 const rotated = () =>
   Response.json({
     access_token: "shpat_new",
@@ -84,49 +61,40 @@ const rotated = () =>
     refresh_token_expires_in: 7776000,
   });
 
-/** Stubs Shopify: the token endpoint and the Admin GraphQL catalog. */
-function shopify(
-  context: TestContext,
-  handlers: { token?: () => Response; catalog?: () => Response } = {},
-) {
-  const seen = { tokenBodies: [] as URLSearchParams[], catalogTokens: [] as string[] };
+/** Stubs Shopify's token endpoint, recording each refresh request. */
+function shopify(context: TestContext, token?: () => Response | Promise<Response>) {
+  const refreshes: URLSearchParams[] = [];
   context.mock.method(globalThis, "fetch", async (input: string | URL, init?: RequestInit) => {
-    const url = String(input);
-    if (url.endsWith("/admin/oauth/access_token")) {
-      seen.tokenBodies.push(new URLSearchParams(String(init?.body)));
-      return (handlers.token ?? (() => assert.fail("unexpected token refresh")))();
-    }
-    seen.catalogTokens.push(new Headers(init?.headers).get("X-Shopify-Access-Token") ?? "");
-    return (handlers.catalog ?? catalogPage)();
+    assert.match(String(input), /\/admin\/oauth\/access_token$/);
+    refreshes.push(new URLSearchParams(String(init?.body)));
+    return (token ?? (() => assert.fail("unexpected token refresh")))();
   });
-  return seen;
+  return refreshes;
 }
 
 test("a token that is not about to expire is used as-is", async (context) => {
-  const seen = shopify(context);
+  const refreshes = shopify(context);
   for (const tokenExpiresAt of [new Date(Date.now() + HOUR), null]) {
     const { id } = await connection({
       credentials: { accessToken: "shpat_live", refreshToken: "shprt_live" },
       tokenExpiresAt,
     });
-    assert.equal((await syncConnection(id, pool)).imported, 1);
+    assert.equal(await shopifyAccessToken(id, db), "shpat_live");
   }
-  assert.deepEqual(seen.catalogTokens, ["shpat_live", "shpat_live"]);
-  assert.equal(seen.tokenBodies.length, 0);
+  assert.equal(refreshes.length, 0);
 });
 
-test("an expiring token is refreshed and the rotated tokens are stored before fetching", async (context) => {
-  const seen = shopify(context, { token: rotated });
+test("an expiring token is refreshed and the rotated tokens are stored", async (context) => {
+  const refreshes = shopify(context, rotated);
   const { id } = await connection({
     credentials: { accessToken: "shpat_old", refreshToken: "shprt_old" },
     tokenExpiresAt: new Date(Date.now() + 60_000),
   });
 
-  assert.equal((await syncConnection(id, pool)).imported, 1);
-  assert.equal(seen.tokenBodies[0].get("grant_type"), "refresh_token");
-  assert.equal(seen.tokenBodies[0].get("refresh_token"), "shprt_old");
-  assert.equal(seen.tokenBodies[0].get("client_secret"), "test-secret");
-  assert.deepEqual(seen.catalogTokens, ["shpat_new"]);
+  assert.equal(await shopifyAccessToken(id, db), "shpat_new");
+  assert.equal(refreshes[0].get("grant_type"), "refresh_token");
+  assert.equal(refreshes[0].get("refresh_token"), "shprt_old");
+  assert.equal(refreshes[0].get("client_secret"), "test-secret");
 
   const row = await stored(id);
   assert.deepEqual(decryptCredentials(row.credentialsEncrypted!), {
@@ -137,46 +105,46 @@ test("an expiring token is refreshed and the rotated tokens are stored before fe
   assert.ok(row.refreshTokenExpiresAt!.getTime() - Date.now() > 89 * 24 * HOUR);
 });
 
-test("rotated tokens survive a catalog fetch that fails after the refresh", async (context) => {
-  shopify(context, { token: rotated, catalog: () => new Response("down", { status: 502 }) });
+test("concurrent searches refresh a store's single-use refresh token only once", async (context) => {
+  const refreshes = shopify(context, async () => {
+    await new Promise((resolve) => setTimeout(resolve, 50)); // others arrive while this runs
+    return rotated();
+  });
   const { id } = await connection({
     credentials: { accessToken: "shpat_old", refreshToken: "shprt_old" },
     tokenExpiresAt: new Date(Date.now() - 1000),
   });
-
-  await assert.rejects(syncConnection(id, pool), /catalog fetch failed/);
-  assert.equal(
-    decryptCredentials((await stored(id)).credentialsEncrypted!).refreshToken,
-    "shprt_new",
-  );
+  const tokens = await Promise.all(Array.from({ length: 5 }, () => shopifyAccessToken(id, db)));
+  assert.deepEqual(tokens, Array(5).fill("shpat_new"));
+  assert.equal(refreshes.length, 1);
 });
 
-test("a rejected refresh asks the Merchant to reconnect; an outage does not", async (context) => {
+test("a rejected refresh disables the connection so the store shows reconnect; an outage does not", async (context) => {
   let status = 401;
-  shopify(context, { token: () => Response.json({ error: "invalid_grant" }, { status }) });
+  shopify(context, () => Response.json({ error: "invalid_grant" }, { status }));
   const expired = await connection({
     credentials: { accessToken: "shpat_old", refreshToken: "shprt_gone" },
     tokenExpiresAt: new Date(Date.now() - 1000),
   });
-  await assert.rejects(syncConnection(expired.id, pool), /Reconnect your store/);
-  assert.equal(
-    (await stored(expired.id)).lastError,
-    "Shopify access expired. Reconnect your store.",
-  );
+  await assert.rejects(shopifyAccessToken(expired.id, db), ShopifyReconnectRequired);
+  const disabled = await stored(expired.id);
+  assert.equal(disabled.enabled, false);
+  assert.equal(disabled.credentialsEncrypted, null);
+  assert.equal(disabled.lastError, "Shopify access expired. Reconnect your store.");
+  await assert.rejects(shopifyAccessToken(expired.id, db), ShopifyReconnectRequired);
 
   status = 503;
   const outage = await connection({
     credentials: { accessToken: "shpat_old", refreshToken: "shprt_ok" },
     tokenExpiresAt: new Date(Date.now() - 1000),
   });
-  await assert.rejects(syncConnection(outage.id, pool), (error: Error) => {
-    assert.doesNotMatch(error.message, /Reconnect/);
+  await assert.rejects(shopifyAccessToken(outage.id, db), (error: Error) => {
+    assert.ok(!(error instanceof ShopifyReconnectRequired));
     return true;
   });
-  assert.equal(
-    decryptCredentials((await stored(outage.id)).credentialsEncrypted!).refreshToken,
-    "shprt_ok",
-  );
+  const kept = await stored(outage.id);
+  assert.equal(kept.enabled, true);
+  assert.equal(decryptCredentials(kept.credentialsEncrypted!).refreshToken, "shprt_ok");
 });
 
 test("an expiring token with no refresh token asks the Merchant to reconnect", async (context) => {
@@ -185,7 +153,7 @@ test("an expiring token with no refresh token asks the Merchant to reconnect", a
     credentials: { accessToken: "shpat_old" },
     tokenExpiresAt: new Date(Date.now() - 1000),
   });
-  await assert.rejects(syncConnection(id, pool), /Reconnect your store/);
+  await assert.rejects(shopifyAccessToken(id, db), ShopifyReconnectRequired);
 });
 
 test("credentials encrypted with the old SESSION_SECRET key still work and are re-encrypted", async (context) => {
@@ -199,7 +167,7 @@ test("credentials encrypted with the old SESSION_SECRET key still work and are r
     encrypted: legacy,
   });
 
-  assert.equal((await syncConnection(id, pool)).imported, 1);
+  assert.equal(await shopifyAccessToken(id, db), "shpat_legacy");
 
   const sessionSecret = process.env.SESSION_SECRET;
   process.env.SESSION_SECRET = "a-different-session-secret-no-fallback"; // new key only

@@ -8,8 +8,8 @@ export default function Privacy() {
       <h1 className="caps text-headline font-bold text-heading">What we store.</h1>
       <p className="mt-4 text-intro text-muted">
         After you connect a Shopify store, this app sets a session cookie so the seller dashboard
-        can show that store. Catalog data is synced from Shopify. Do not put this app on the public
-        internet until authentication and tenant isolation are in place.
+        can show that store. Product data is read live from Shopify and not stored. Do not put this
+        app on the public internet until authentication and tenant isolation are in place.
       </p>
     </main>
   );

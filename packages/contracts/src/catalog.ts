@@ -1,19 +1,50 @@
 import { z } from "zod";
 
 /**
+ * A product's ID: `<provider>:<merchantId>:<externalId>`. Deterministic and readable, so a tool can
+ * fetch the product live from its store without anything stored on our side.
+ */
+export const productIdSchema = z
+  .string()
+  .regex(
+    /^shopify:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:\d{1,20}$/i,
+    "Not a product ID",
+  );
+
+export type ProductId = { provider: "shopify"; merchantId: string; externalId: string };
+
+export function formatProductId({ provider, merchantId, externalId }: ProductId) {
+  return `${provider}:${merchantId.toLowerCase()}:${externalId}`;
+}
+
+/** The parts of a product ID, or null when it isn't one. */
+export function parseProductId(id: string): ProductId | null {
+  if (!productIdSchema.safeParse(id).success) return null;
+  const [, merchantId, externalId] = id.split(":");
+  // The pattern only admits shopify (in any case); normalize so IDs compare equal.
+  return { provider: "shopify", merchantId: merchantId.toLowerCase(), externalId };
+}
+
+/**
  * Catalog search, in real types: agents and the catalog share this exact schema. `maxPrice` is
- * in major units (19.99 = $19.99). HTTP query strings are converted by the REST adapter.
+ * in major units (19.99 = $19.99). HTTP query strings are converted by the REST adapter. To get
+ * the next page, send the same parameters plus the previous response's `nextCursor`.
  */
 export const searchSchema = z
   .object({
     q: z.string().trim().max(200).default(""),
     merchantId: z.uuid().optional(),
+    country: z
+      .string()
+      .regex(/^[A-Z]{2}$/)
+      .optional()
+      .describe("ISO 3166 country of the buyer, e.g. US. Prices are then that market's prices."),
     currency: z
       .string()
       .regex(/^[A-Z]{3}$/)
       .optional()
       .describe(
-        "ISO 4217 code such as USD. Omit to search every currency; required with maxPrice.",
+        "ISO 4217 code such as USD. Only products priced in it are returned; required with maxPrice.",
       ),
     maxPrice: z
       .number()
@@ -22,7 +53,13 @@ export const searchSchema = z
       .describe("Highest price in major units of `currency` (19.99 = 19.99 USD)."),
     inStock: z.boolean().default(false),
     limit: z.number().int().min(1).max(100).default(24),
-    offset: z.number().int().min(0).max(100000).default(0),
+    // ponytail: the stateless cursor grows with the number of stores (~150 bytes each), so this
+    // ceiling is a few hundred stores; compress it or move to the Phase 6 index if that's reached.
+    cursor: z
+      .string()
+      .max(60000)
+      .optional()
+      .describe("`nextCursor` from the previous page; send the same other parameters."),
   })
   // "Under 100" means nothing across USD, JPY, and EUR.
   .refine((query) => query.maxPrice === undefined || query.currency !== undefined, {
@@ -31,9 +68,10 @@ export const searchSchema = z
   });
 
 export type SearchInput = z.input<typeof searchSchema>;
+export type SearchQuery = z.output<typeof searchSchema>;
 
 export const productIdsSchema = z
-  .array(z.uuid())
+  .array(productIdSchema)
   .min(2)
   .max(5)
   .refine(
@@ -41,17 +79,38 @@ export const productIdsSchema = z
     "Product IDs must be unique",
   );
 
-/** Search API DTO: product fields plus nested merchant. Not the Product row. */
+/** An amount in the currency's minor units (cents; yen have none; dinars have three). */
+export type Price = { amountMinor: number; currency: string };
+
+/** Search API DTO: a product as its store serves it right now, plus its merchant. */
 export type CatalogProduct = {
   id: string;
+  provider: "shopify";
   externalId: string;
   name: string;
   description: string;
-  priceMinor: number;
-  currency: string;
+  /** The cheapest variant's price ("from"). */
+  price: Price;
+  /** At least one variant can be bought. */
+  available: boolean;
+  brand: string | null;
+  gtin: string | null;
+  sku: string | null;
   images: string[];
-  inventory: number;
   productUrl: string;
-  updatedAt: string;
+  variants: Array<{ id: string; title: string; price: Price; available: boolean }>;
   merchant: { id: string; name: string; slug: string };
+};
+
+/** A store that didn't answer for this page; its products may be missing. */
+export type UnavailableStore = { merchantId: string; name: string };
+
+export type SearchResult = {
+  products: CatalogProduct[];
+  /** Opaque; pass it back as `cursor` for the next page. Null on the last page. */
+  nextCursor: string | null;
+  hasMore: boolean;
+  /** True when some stores were unavailable, so this page may be missing their products. */
+  partial: boolean;
+  unavailable: UnavailableStore[];
 };

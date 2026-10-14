@@ -1,4 +1,17 @@
-export { searchSchema, productIdsSchema, type SearchInput, type CatalogProduct } from "./catalog";
+export {
+  searchSchema,
+  productIdSchema,
+  productIdsSchema,
+  formatProductId,
+  parseProductId,
+  type ProductId,
+  type SearchInput,
+  type SearchQuery,
+  type Price,
+  type CatalogProduct,
+  type SearchResult,
+  type UnavailableStore,
+} from "./catalog";
 export {
   sellerStatusSchema,
   sellerResponseSchema,

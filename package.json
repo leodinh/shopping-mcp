@@ -6,7 +6,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "pnpm run --parallel --filter @shopping-mcp/web --filter @shopping-mcp/api",
+    "dev": "pnpm run --parallel --filter @shopping-mcp/web --filter @shopping-mcp/api dev",
     "dev:web": "pnpm --filter @shopping-mcp/web dev",
     "dev:api": "pnpm --filter @shopping-mcp/api dev",
     "dev:worker": "pnpm",

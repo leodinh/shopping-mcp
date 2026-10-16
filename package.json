@@ -6,10 +6,10 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "pnpm run --parallel --filter @shopping-mcp/web --filter @shopping-mcp/api --filter @shopping-mcp/worker dev",
+    "dev": "pnpm run --parallel --filter @shopping-mcp/web --filter @shopping-mcp/api dev",
     "dev:web": "pnpm --filter @shopping-mcp/web dev",
     "dev:api": "pnpm --filter @shopping-mcp/api dev",
-    "dev:worker": "pnpm --filter @shopping-mcp/worker dev",
+    "dev:worker": "pnpm",
     "build": "pnpm typecheck && pnpm --filter @shopping-mcp/web build",
     "typecheck": "tsc --noEmit -p tsconfig.json && pnpm -r --if-present typecheck",
     "lint": "eslint tests --max-warnings=0 && pnpm -r --if-present lint",

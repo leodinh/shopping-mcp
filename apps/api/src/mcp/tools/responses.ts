@@ -1,5 +1,6 @@
 import { CallToolResult } from "@modelcontextprotocol/server";
 import { ZodError } from "zod";
+import { AllStoresUnavailable, InvalidCursor } from "@shopping-mcp/commerce/catalog";
 
 export function textResult(text: string, isError = false): CallToolResult {
   return {
@@ -19,6 +20,10 @@ export function catalogToolError(error: unknown): CallToolResult {
   if (error instanceof ZodError) {
     return textResult(JSON.stringify({ error: "Invalid parameters", issues: error.issues }), true);
   }
+  if (error instanceof InvalidCursor) return textResult(error.message, true);
+  if (error instanceof AllStoresUnavailable) {
+    return textResult("No store could be reached right now. Try again shortly.", true);
+  }
   console.error("MCP catalog tool failed", error);
-  return textResult("Catalog unavailable. Check database setup.", true);
+  return textResult("Catalog unavailable right now. Try again shortly.", true);
 }

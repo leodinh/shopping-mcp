@@ -14,17 +14,17 @@ Secondary: store owners who connect a Shopify catalog so those assistants can di
 
 ## Product Purpose
 
-Shopping with Agent lets a shopper ask their assistant to search and compare products across connected stores. Success is the assistant returning real, comparable products from the catalog — not a shopper completing checkout on this site (checkout is not supported yet).
+Shopping with Agent lets a shopper ask their assistant to search and compare products across connected stores. Success is the assistant returning real, comparable products live from connected stores — not a shopper completing checkout on this site (checkout is not supported yet).
 
 ## Positioning
 
-Shopping happens inside the assistant. The mechanism is an MCP server over a normalized product catalog synced from Shopify. A neighboring storefront or merchant admin could not truthfully claim that.
+Shopping happens inside the assistant. The mechanism is an MCP server that searches connected Shopify stores live and normalizes what they return; nothing is copied or synced. A neighboring storefront or merchant admin could not truthfully claim that.
 
 People-facing name: **Shopping with Agent**. Protocol / config / repo name: **Shopping MCP**. Keep both; do not collapse them.
 
 ## Operating Context
 
-Next.js UI on `:3000` + Nest API/MCP on `:3001` + Nest worker + PostgreSQL + Shopify OAuth, developed on localhost (`pnpm dev`). Shoppers add the MCP server to an assistant (downloadable `shopping-mcp.json` pointing at `http://127.0.0.1:3001/api/mcp`). Store owners sign in and connect stores at `/profile`. Contact is GitHub issues.
+Next.js UI on `:3000` + Nest API/MCP on `:3001` + PostgreSQL (users, stores, connections) + Shopify OAuth and Admin API, developed on localhost (`pnpm dev`). Shoppers add the MCP server to an assistant (downloadable `shopping-mcp.json` pointing at `http://127.0.0.1:3001/api/mcp`). Store owners sign in and connect stores at `/profile`. Contact is GitHub issues.
 
 Heading toward a public product. The current privacy copy (“local app / should not be used with real customer data”) is stale and must not be treated as product policy. Public launch still requires real auth and data isolation (not present today).
 
@@ -32,10 +32,10 @@ Heading toward a public product. The current privacy copy (“local app / should
 
 Confirmed:
 
-- MCP tools: `search_products`, `get_product`, `compare_products`, `get_checkout` (currently returns `supported: false`).
-- Shopify is the only connector. Catalog sync is queued in `sync_runs` and drained by the Nest worker every 10s, capped at 10,000 products per merchant.
-- Seller session is a cookie after OAuth. Shopify credentials are stored encrypted.
-- HTTP catalog APIs exist on the Nest origin (`/api/products`, `/api/merchants`) for the same catalog.
+- MCP tools: `search_products`, `get_product`, `compare_products`, `get_checkout` (currently returns `supported: false`), `get_account` (requires sign-in).
+- Shopify is the only provider. Search is live and federated across every connected store (round-robin merge, signed cursor paging, partial results when a store doesn't answer); only active products published to the online store are searchable.
+- Users sign in with an email link or Google (Better Auth); Shopify OAuth only authorizes a store. Shopify credentials are stored encrypted.
+- HTTP catalog APIs exist on the Nest origin (`/api/products`, `/api/merchants`) for the same live search.
 - Logo asset: `apps/web/public/logo.png` (cart-with-agent mark).
 
 Undecided / not yet built:

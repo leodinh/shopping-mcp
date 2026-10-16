@@ -6,7 +6,7 @@ import { catalogToolError, dataResult } from "./responses";
 export const searchProductsTool = {
   title: "Search Products",
   description:
-    "Find products using keywords, price, merchant, and availability. maxPrice is in major units (19.99 = $19.99).",
+    "Find products across connected stores, live. Filter by keywords, merchant, buyer country, currency, maxPrice (major units: 19.99 = $19.99) and stock. For more results, call again with the same parameters plus `cursor` set to `nextCursor`. `partial` with `unavailable` lists stores that didn't answer this time.",
   inputSchema: searchSchema,
 };
 

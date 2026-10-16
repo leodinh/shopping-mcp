@@ -1,20 +1,27 @@
 import { z } from "zod";
-import { getProductById } from "@shopping-mcp/commerce/catalog";
+import { productIdSchema } from "@shopping-mcp/contracts";
+import { getProduct } from "@shopping-mcp/commerce/catalog";
 import { catalogToolError, dataResult, textResult } from "./responses";
 
 export const getProductInput = z.object({
-  productId: z.uuid(),
+  productId: productIdSchema,
+  country: z
+    .string()
+    .regex(/^[A-Z]{2}$/)
+    .optional()
+    .describe("ISO 3166 country of the buyer, for that market's price."),
 });
 
 export const getProductTool = {
   title: "Get Product",
-  description: "Retrieve one product by its internal ID.",
+  description: "Retrieve one product, live from its store, by the ID search returned.",
   inputSchema: getProductInput,
 };
 
 export async function runGetProductTool(input: z.infer<typeof getProductInput>) {
   try {
-    const product = await getProductById(input.productId);
+    const { product, unavailable } = await getProduct(input.productId, input);
+    if (unavailable.length) return textResult("The store didn't answer. Try again shortly.", true);
     if (!product) return textResult("Product not found.", true);
     return dataResult({ product });
   } catch (error) {

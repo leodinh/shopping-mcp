@@ -9,13 +9,12 @@ import {
   completeStoreConnection,
   disconnectStore,
   type ExchangeCode,
+  type VerifyShop,
 } from "@shopping-mcp/commerce/store-connection";
 import {
   merchantConnections,
   merchants,
   oauthAttempts,
-  products,
-  syncRuns,
   user,
   type Database,
 } from "@shopping-mcp/database";
@@ -26,7 +25,7 @@ process.env.CREDENTIALS_KEY = "test-credentials-key-32-characters-min";
 process.env.SHOPIFY_API_KEY = "test-key";
 process.env.SHOPIFY_API_SECRET = "test-secret";
 process.env.SHOPIFY_SCOPES = "read_products";
-process.env.SHOPIFY_REDIRECT_URI = "http://127.0.0.1:3001/api/connections/shopify/callback";
+process.env.API_ORIGIN = "http://localhost:3001";
 
 let db: Database;
 let drop: () => Promise<void>;
@@ -41,6 +40,11 @@ const grant: ExchangeCode = async () => ({
   refreshTokenExpiresAt: null,
 });
 const mustNotExchange: ExchangeCode = async () => assert.fail("token exchange must not run");
+// Stands in for Shopify's `shop { id name }` answer to the fresh token.
+const verifyShop: VerifyShop = async (shop) => ({
+  gid: `gid://shopify/Shop/${shop.slice(5, 13)}`,
+  name: `Shop ${shop.slice(5, 13)}`,
+});
 
 function uniqueShop() {
   return `shop-${randomUUID().slice(0, 8)}.myshopify.com`;
@@ -82,6 +86,7 @@ async function connect(shop: string, userId: string) {
     {
       db,
       exchangeCode: grant,
+      verifyShop,
     },
   );
   assert.ok(done.ok, `complete failed: ${JSON.stringify(done)}`);
@@ -93,13 +98,13 @@ async function ownerOf(merchantId: string) {
   return row.userId;
 }
 
-test("a signed-in User connects a shop: they own the new Merchant, credentials are stored, a sync is requested", async () => {
+test("a signed-in User connects a shop: they own the new Merchant and the shop is verified", async () => {
   const alice = await newUser();
   const shop = uniqueShop();
   const started = await begin(` https://${shop.toUpperCase()}/admin `, alice);
   assert.equal(
     started.authorizationUrl,
-    `https://${shop}/admin/oauth/authorize?client_id=test-key&scope=read_products&redirect_uri=http%3A%2F%2F127.0.0.1%3A3001%2Fapi%2Fconnections%2Fshopify%2Fcallback&state=${started.state}`,
+    `https://${shop}/admin/oauth/authorize?client_id=test-key&scope=read_products&redirect_uri=http%3A%2F%2Flocalhost%3A3001%2Fapi%2Fconnections%2Fshopify%2Fcallback&state=${started.state}`,
   );
   assert.match(started.browserBinding, /^[0-9a-f]{32}$/);
   const ttl = started.expiresAt.getTime() - Date.now();
@@ -114,6 +119,7 @@ test("a signed-in User connects a shop: they own the new Merchant, credentials a
     {
       db,
       exchangeCode: async (s, code) => (exchanged.push(`${s} ${code}`), grant(s, code)),
+      verifyShop,
     },
   );
   assert.ok(done.ok);
@@ -129,11 +135,13 @@ test("a signed-in User connects a shop: they own the new Merchant, credentials a
     accessToken: "shpat_test",
     refreshToken: "shprt_test",
   });
-  const runs = await db.select().from(syncRuns).where(eq(syncRuns.connectionId, connection.id));
-  assert.deepEqual(
-    runs.map((run) => run.status),
-    ["pending"],
-  );
+  assert.equal(connection.shopGid, `gid://shopify/Shop/${shop.slice(5, 13)}`);
+  assert.ok(connection.verifiedAt);
+  const [merchant] = await db.select().from(merchants).where(eq(merchants.id, done.merchantId));
+  assert.equal(merchant.name, `Shop ${shop.slice(5, 13)}`);
+  // Connecting is READY at once: nothing is imported, the store is searched live.
+  const [listed] = await listStoresForUser(alice, db);
+  assert.equal(listed.status, "connected");
 
   const replay = await completeStoreConnection(
     callback(shop, started.state),
@@ -228,6 +236,7 @@ test("another User's shop is refused at begin, at complete, and when they win a 
       await connect(raced, alice);
       return grant(s, code);
     },
+    verifyShop,
   });
   assert.deepEqual(result, { ok: false, reason: "shop_taken" });
 });
@@ -297,6 +306,27 @@ test("a failed token exchange stores nothing and uses up the attempt", async () 
   );
 });
 
+test("a shop that does not answer the new token stores nothing and uses up the attempt", async () => {
+  const shop = uniqueShop();
+  const started = await begin(shop, await newUser());
+  const deps = {
+    db,
+    exchangeCode: grant,
+    verifyShop: async () => {
+      throw new Error("Shopify said 401");
+    },
+  };
+  assert.deepEqual(
+    await completeStoreConnection(callback(shop, started.state), started.browserBinding, deps),
+    { ok: false, reason: "shop_verification_failed" },
+  );
+  assert.equal((await db.select().from(merchants).where(eq(merchants.slug, shop))).length, 0);
+  assert.deepEqual(
+    await completeStoreConnection(callback(shop, started.state), started.browserBinding, deps),
+    { ok: false, reason: "invalid_state" },
+  );
+});
+
 test("complete subscribes the uninstall webhook, and a failed subscription does not fail connecting", async () => {
   const alice = await newUser();
   const registered: string[] = [];
@@ -308,6 +338,7 @@ test("complete subscribes the uninstall webhook, and a failed subscription does 
     {
       db,
       exchangeCode: grant,
+      verifyShop,
       registerWebhooks: async (s, accessToken) => void registered.push(`${s} ${accessToken}`),
     },
   );
@@ -319,6 +350,7 @@ test("complete subscribes the uninstall webhook, and a failed subscription does 
   const result = await completeStoreConnection(callback(other, again.state), again.browserBinding, {
     db,
     exchangeCode: grant,
+    verifyShop,
     registerWebhooks: async () => {
       throw new Error("Shopify unreachable");
     },
@@ -326,20 +358,10 @@ test("complete subscribes the uninstall webhook, and a failed subscription does 
   assert.ok(result.ok);
 });
 
-test("only the owner can disconnect a store; disconnecting stops it and hides its products", async () => {
+test("only the owner can disconnect a store; disconnecting stops search reaching it", async () => {
   const alice = await newUser();
   const shop = uniqueShop();
   const merchantId = await connect(shop, alice);
-  await db.insert(products).values({
-    merchantId,
-    externalId: "mug",
-    name: "Stone mug",
-    priceMinor: 1200,
-    currency: "USD",
-    inventory: 3,
-    productUrl: `https://${shop}/products/mug`,
-  });
-
   assert.equal(await disconnectStore(await newUser(), merchantId, db), false);
   const connectionOf = async () =>
     (
@@ -351,13 +373,13 @@ test("only the owner can disconnect a store; disconnecting stops it and hides it
   assert.equal((await connectionOf()).enabled, true);
 
   assert.equal(await disconnectStore(alice, merchantId, db), true);
+  assert.equal((await getOwnedStore(alice, merchantId, db))?.status, "disconnected");
   const connection = await connectionOf();
   assert.equal(connection.enabled, false);
   assert.equal(connection.credentialsEncrypted, null);
-  const [product] = await db.select().from(products).where(eq(products.merchantId, merchantId));
-  assert.equal(product.active, false);
 
   // Reconnecting restores it.
   await connect(shop, alice);
+  assert.equal((await getOwnedStore(alice, merchantId, db))?.status, "connected");
   assert.equal((await connectionOf()).enabled, true);
 });

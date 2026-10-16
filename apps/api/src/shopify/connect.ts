@@ -11,6 +11,7 @@ const failures: Record<StoreConnectionFailure, [status: number, error: string]> 
   invalid_state: [403, "Invalid state"],
   shop_taken: [409, "Shop already connected"],
   token_exchange_failed: [502, "Shopify did not grant access. Try connecting again."],
+  shop_verification_failed: [502, "Shopify did not confirm the store. Try connecting again."],
 };
 
 export function storeConnectionFailure(reason: StoreConnectionFailure) {

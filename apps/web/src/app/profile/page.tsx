@@ -9,9 +9,11 @@ export const metadata = {
 
 /** Protected: the API validates the session; without a valid one, the visitor goes home. */
 export default async function ProfilePage() {
+  // Outside the try: Next signals dynamic rendering by throwing from cookies(); never catch it.
+  const cookie = (await cookies()).toString();
   let seller;
   try {
-    seller = await loadSeller((await cookies()).toString());
+    seller = await loadSeller(cookie);
   } catch (error) {
     // The API couldn't answer, so the session is unknown: show nothing but a retry.
     console.error("Profile load failed", error);

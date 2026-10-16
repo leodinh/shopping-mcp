@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { authClient } from "./auth-client";
+import type { Account } from "./session";
 
 function Chevron({ open }: { open: boolean }) {
   return (
@@ -18,12 +19,15 @@ function Chevron({ open }: { open: boolean }) {
 }
 
 /**
- * LOGIN when signed out; ACCOUNT with a PROFILE / LOGOUT menu when signed in. While the session
- * resolves, the header hides its whole nav (via data-pending), so neither label flashes nor moves.
+ * LOGIN when signed out; ACCOUNT with a PROFILE / LOGOUT menu when signed in. The server resolves
+ * `initial` for the first paint; the live session takes over once the browser has it (sign-out,
+ * another tab). Only when the server couldn't tell (undefined) does the header hide its nav until
+ * the browser knows (via data-pending), so neither label flashes.
  */
-export function AccountMenu() {
+export function AccountMenu({ initial }: { initial: Account | null | undefined }) {
   const router = useRouter();
-  const { data: session, isPending } = authClient.useSession();
+  const { data, isPending } = authClient.useSession();
+  const account = isPending ? initial : data ? { email: data.user.email } : null;
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -107,7 +111,7 @@ export function AccountMenu() {
     router.refresh();
   }
 
-  if (isPending) {
+  if (account === undefined) {
     return (
       <span data-pending aria-hidden className="btn-link">
         Login
@@ -115,7 +119,7 @@ export function AccountMenu() {
     );
   }
 
-  if (!session) {
+  if (!account) {
     return (
       <Link href="/login" className="btn-link">
         Login
@@ -152,7 +156,7 @@ export function AccountMenu() {
         } motion-reduce:translate-y-0`}
       >
         <p className="truncate border-b border-dashed border-ink px-4 pt-2 pb-3 text-label text-muted">
-          {session.user.email}
+          {account.email}
         </p>
         <Link
           href="/profile"

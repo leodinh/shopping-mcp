@@ -2,7 +2,11 @@ import { Controller, Get, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
 import { ZodError } from "zod";
 import { searchSchema } from "@shopping-mcp/contracts";
-import { searchProducts } from "@shopping-mcp/commerce/catalog";
+import {
+  AllStoresUnavailable,
+  InvalidCursor,
+  searchProducts,
+} from "@shopping-mcp/commerce/catalog";
 
 // The only place query strings exist: turn them into the catalog's real types, then validate
 // with the catalog's own schema (same bounds, same rules).
@@ -17,7 +21,6 @@ function fromQueryString(query: Record<string, string>) {
     maxPrice: asNumber(query.maxPrice),
     inStock: asBoolean(query.inStock),
     limit: asNumber(query.limit),
-    offset: asNumber(query.offset),
   };
 }
 
@@ -32,8 +35,16 @@ export class CatalogController {
         res.status(400).json({ error: "Invalid search parameters", issues: error.issues });
         return;
       }
+      if (error instanceof InvalidCursor) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
+      if (error instanceof AllStoresUnavailable) {
+        res.status(503).json({ error: "No store could be reached right now. Try again shortly." });
+        return;
+      }
       console.error("Catalog search failed", error);
-      res.status(503).json({ error: "Catalog unavailable. Check database setup." });
+      res.status(503).json({ error: "Catalog unavailable right now. Try again shortly." });
     }
   }
 }

@@ -11,7 +11,6 @@ const forbiddenPackages = [
   "@shopping-mcp/config",
   "@shopping-mcp/database",
   "@shopping-mcp/api",
-  "@shopping-mcp/worker",
 ];
 // Next.js APIs (next/headers, next/cache, …) are the web framework, not backend: allowed.
 const forbiddenModules = ["pg"];
@@ -70,7 +69,7 @@ test("contracts cannot import backend packages or server-only modules", async ()
         `contracts import ${specifier}`,
       );
       assert.ok(
-        !/^(packages\/(commerce|database|config)|apps\/(api|worker))\//.test(specifier),
+        !/^(packages\/(commerce|database|config)|apps\/api)\//.test(specifier),
         `backend source import ${specifier}`,
       );
       assert.ok(
@@ -90,7 +89,7 @@ test("web cannot import backend packages, including through aliases or subpaths"
         `client import ${specifier}`,
       );
       assert.ok(
-        !/^(packages\/(commerce|database|config)|apps\/(api|worker))\//.test(specifier),
+        !/^(packages\/(commerce|database|config)|apps\/api)\//.test(specifier),
         `backend source import ${specifier}`,
       );
       assert.ok(
@@ -107,7 +106,7 @@ test("shared packages cannot depend on apps and commerce cannot depend on transp
     for (const path of await sourceFiles(root)) {
       await checkGraph(path, root, (_location, specifier) => {
         assert.ok(
-          !/^(@shopping-mcp\/(api|web|worker)(\/|$)|apps\/)/.test(specifier),
+          !/^(@shopping-mcp\/(api|web)(\/|$)|apps\/)/.test(specifier),
           `${name} imports app ${specifier}`,
         );
         if (name === "commerce") {

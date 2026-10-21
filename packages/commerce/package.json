@@ -7,8 +7,6 @@
     "./catalog": "./src/catalog/index.ts",
     "./auth": "./src/auth/index.ts",
     "./merchants": "./src/merchants/index.ts",
-    "./sync": "./src/sync/index.ts",
-    "./connectors": "./src/connectors/index.ts",
     "./connectors/shopify": "./src/connectors/shopify/index.ts",
     "./store-connection": "./src/store-connection/index.ts"
   },

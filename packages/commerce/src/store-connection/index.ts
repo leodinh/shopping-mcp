@@ -8,7 +8,7 @@ import {
   type Database,
 } from "@shopping-mcp/database";
 import { encryptCredentials } from "../connectors/shopify/credentials";
-import { enqueueSync } from "../sync/outbox";
+import { verifyShopifyShop, type ShopIdentity, type VerifyShop } from "../connectors/shopify/shop";
 import {
   exchangeShopifyCode,
   type ExchangeCode,
@@ -18,13 +18,14 @@ import { disableConnection } from "./disable";
 import { normalizeShopDomain, shopifyAuthorizeUrl, validShopifyHmac } from "./shopify";
 import { registerShopifyWebhooks } from "./webhooks";
 
-export type { ExchangeCode, ShopifyToken };
+export type { ExchangeCode, ShopIdentity, ShopifyToken, VerifyShop };
 
 const ATTEMPT_TTL_MS = 10 * 60 * 1000;
 
 export type StoreConnectionDeps = {
   db?: Database;
   exchangeCode?: ExchangeCode;
+  verifyShop?: VerifyShop;
   registerWebhooks?: (shop: string, accessToken: string) => Promise<void>;
 };
 
@@ -39,7 +40,12 @@ export type CompleteStoreConnectionResult =
   | {
       ok: false;
       reason:
-        "invalid_hmac" | "invalid_shop" | "invalid_state" | "token_exchange_failed" | "shop_taken";
+        | "invalid_hmac"
+        | "invalid_shop"
+        | "invalid_state"
+        | "token_exchange_failed"
+        | "shop_verification_failed"
+        | "shop_taken";
     };
 
 export type StoreConnectionFailure =
@@ -76,8 +82,10 @@ export async function beginStoreConnection(
 
 /**
  * Finishes a Store connection from Shopify's callback query. Only now, with Shopify having proven
- * the User controls the shop, is its Merchant created or (if unowned) claimed for them. The OAuth
- * attempt is used up even when the token exchange fails; the User then begins again.
+ * the User controls the shop, is its Merchant created or (if unowned) claimed for them. The new
+ * token is verified with one shop query before anything is stored; connecting never syncs the
+ * catalog. The OAuth attempt is used up even when the exchange or verification fails; the User
+ * then begins again.
  */
 export async function completeStoreConnection(
   params: URLSearchParams,
@@ -104,11 +112,19 @@ export async function completeStoreConnection(
     return { ok: false, reason: "token_exchange_failed" };
   }
 
+  let identity: ShopIdentity;
+  try {
+    identity = await (deps.verifyShop ?? verifyShopifyShop)(shop, token.accessToken);
+  } catch (error) {
+    console.error("Shopify shop verification failed", error);
+    return { ok: false, reason: "shop_verification_failed" };
+  }
+
   try {
     const merchantId = await db.transaction(async (tx) => {
-      const merchantId = await merchantFor(shop, userId, tx);
-      const connectionId = await upsertConnection(merchantId, shop, token, tx);
-      await enqueueSync(connectionId, tx);
+      const merchantId = await merchantFor(shop, userId, identity.name, tx);
+      await tx.update(merchants).set({ name: identity.name }).where(eq(merchants.id, merchantId));
+      await upsertConnection(merchantId, shop, token, identity, tx);
       return merchantId;
     });
     try {
@@ -128,8 +144,7 @@ export async function completeStoreConnection(
 }
 
 /**
- * Disconnects one of the User's stores: stops syncing it, drops its credentials, and hides its
- * products. Returns false when the store doesn't exist or belongs to someone else.
+ * Disconnects one of the User's stores: drops its credentials, so search stops reaching it. Returns false when the store doesn't exist or belongs to someone else.
  */
 export async function disconnectStore(
   userId: string,
@@ -172,7 +187,7 @@ async function ownedByAnotherUser(shop: string, userId: string, db: Database) {
 }
 
 /** Claims the shop's unowned Merchant for `userId`, or creates one owned by them. */
-async function merchantFor(shop: string, userId: string, db: Database) {
+async function merchantFor(shop: string, userId: string, name: string, db: Database) {
   const owner = await shopOwner(shop, db);
   if (owner) {
     if (owner.userId === userId) return owner.merchantId;
@@ -188,7 +203,7 @@ async function merchantFor(shop: string, userId: string, db: Database) {
     .insert(merchants)
     .values({
       slug: shop,
-      name: shop.slice(0, shop.indexOf(".")),
+      name,
       websiteUrl: `https://${shop}`,
       userId,
     })
@@ -219,6 +234,7 @@ async function upsertConnection(
   merchantId: string,
   shop: string,
   token: ShopifyToken,
+  identity: ShopIdentity,
   db: Database,
 ) {
   const [connection] = await db
@@ -235,6 +251,8 @@ async function upsertConnection(
       scopes: token.scope,
       tokenExpiresAt: token.expiresAt,
       refreshTokenExpiresAt: token.refreshTokenExpiresAt,
+      shopGid: identity.gid,
+      verifiedAt: sql`now()`,
       enabled: true,
     })
     .onConflictDoUpdate({
@@ -247,6 +265,8 @@ async function upsertConnection(
         scopes: sql`excluded.scopes`,
         tokenExpiresAt: sql`excluded.token_expires_at`,
         refreshTokenExpiresAt: sql`excluded.refresh_token_expires_at`,
+        shopGid: sql`excluded.shop_gid`,
+        verifiedAt: sql`now()`,
         enabled: true,
         lastError: null,
       },

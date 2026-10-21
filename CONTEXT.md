@@ -39,3 +39,17 @@ One in-flight Store connection for a User and a shop, identified by its state; s
 
 **Browser binding**:
 A secret tying an OAuth attempt to the browser that began it, so a callback from any other browser is rejected.
+
+### Search
+
+**Product**:
+An item a Merchant sells, as its store serves it right now. Never stored: every search and lookup reads it live from the store. Its ID is `shopify:<merchantId>:<productId>`, so it can be fetched again without anything kept on our side.
+_Avoid_: catalog row, synced product
+
+**ProductProvider**:
+One connected store's live catalog: searches it and fetches products by ID, returning them normalized. Provider-specific requests, credentials and positions stay inside it.
+_Avoid_: connector, sync source
+
+**Live search**:
+A search asked of every eligible store at once, merged round-robin so each Merchant gets balanced exposure, paged by a signed cursor. A store that doesn't answer makes the page **partial**; it is retried on the next page.
+_Avoid_: catalog sync, index (an index is planned separately, Phase 6)

@@ -4,14 +4,13 @@ import { sellerResponseSchema } from "@shopping-mcp/contracts";
 
 const store = {
   id: "00000000-0000-4000-8000-000000000001",
+  status: "disconnected",
   slug: "test.myshopify.com",
   name: "Test",
   connectionId: null,
   connectorType: null,
   enabled: null,
-  lastSyncedAt: "2026-09-13T18:00:00.000Z",
   lastError: null,
-  productCount: 0,
 };
 const user = {
   id: "00000000-0000-4000-8000-000000000002",
@@ -28,8 +27,10 @@ test("seller responses carry the signed-in user and their stores, with ISO times
   });
   // Signed out is a 401 from the API, never a response without a user.
   assert.equal(sellerResponseSchema.safeParse({ user: null, stores: [] }).success, false);
-  for (const lastSyncedAt of [new Date(), "not-a-date"]) {
-    const response = { user, stores: [{ ...store, lastSyncedAt }] };
+  for (const createdAt of [new Date(), "not-a-date"]) {
+    const response = { user: { ...user, createdAt }, stores: [store] };
     assert.equal(sellerResponseSchema.safeParse(response).success, false);
   }
+  const unknownStatus = { user, stores: [{ ...store, status: "awaiting sync" }] };
+  assert.equal(sellerResponseSchema.safeParse(unknownStatus).success, false);
 });

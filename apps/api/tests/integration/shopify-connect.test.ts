@@ -11,7 +11,7 @@ process.env.CREDENTIALS_KEY = "test-credentials-key-32-characters-min";
 process.env.SHOPIFY_API_KEY = "test-key";
 process.env.SHOPIFY_API_SECRET = "test-secret";
 process.env.SHOPIFY_SCOPES = "read_products";
-process.env.SHOPIFY_REDIRECT_URI = "http://127.0.0.1:3001/api/connections/shopify/callback";
+process.env.API_ORIGIN = "http://localhost:3001";
 process.env.WEB_ORIGIN = "http://localhost:3000";
 
 function signedCallbackQuery(params: Record<string, string>) {
@@ -50,6 +50,7 @@ test("a signed-in User connects a shop over HTTP and returns to their profile ow
         expiresAt: null,
         refreshTokenExpiresAt: null,
       }),
+      verifyShop: async () => ({ gid: "gid://shopify/Shop/1", name: "UI Shop" }),
     };
     const started = await handleShopifyConnect(
       connectRequest("ui-shop.myshopify.com"),
@@ -84,8 +85,8 @@ test("a signed-in User connects a shop over HTTP and returns to their profile ow
 
     const stores = await listStoresForUser(alice.id, db);
     assert.deepEqual(
-      stores.map((store) => store.slug),
-      ["ui-shop.myshopify.com"],
+      stores.map((store) => [store.slug, store.name]),
+      [["ui-shop.myshopify.com", "UI Shop"]],
     );
   } finally {
     await drop();

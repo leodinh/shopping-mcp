@@ -1,7 +1,2 @@
 export { decryptCredentials, type ShopifyCredentials } from "./credentials";
-export {
-  mapShopifyProduct,
-  fetchShopifyCatalog,
-  shopifyConnector,
-  type ShopifyFetchOptions,
-} from "./catalog";
+export { ShopifyProductProvider, shopifyProviders } from "./provider";

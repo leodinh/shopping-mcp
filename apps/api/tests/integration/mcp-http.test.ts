@@ -5,8 +5,30 @@ import request from "supertest";
 import { createApi } from "../../src/create-api";
 
 let app: Awaited<ReturnType<typeof createApi>>;
-before(async () => (app = await createApi()));
-after(() => app.close());
+const realFetch = globalThis.fetch;
+before(async () => {
+  // This suite runs against the migrated dev database, which may hold connected stores: answer
+  // every Shopify call here so a test run never reaches a real shop (or refreshes its tokens).
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    if (!url.hostname.endsWith(".myshopify.com")) return realFetch(input, init);
+    if (url.pathname.endsWith("/admin/oauth/access_token")) {
+      return Response.json({ error: "invalid_grant" }, { status: 503 });
+    }
+    return Response.json({
+      data: {
+        shop: { currencyCode: "USD" },
+        products: { edges: [], pageInfo: { hasNextPage: false, endCursor: null } },
+        nodes: [],
+      },
+    });
+  }) as typeof fetch;
+  app = await createApi();
+});
+after(async () => {
+  globalThis.fetch = realFetch;
+  await app.close();
+});
 
 type RpcResponse = {
   result?: {
@@ -45,6 +67,8 @@ test("agents see the catalog's own search schema: maxPrice is a number", async (
   const search = tools.get("search_products")!.inputSchema.properties;
   assert.equal(search.maxPrice.type, "number");
   assert.equal(search.inStock.type, "boolean");
+  assert.equal(search.cursor.type, "string");
+  assert.equal(search.offset, undefined, "paging is by cursor now");
 });
 
 test("search_products accepts any non-negative price an agent sends", async () => {
@@ -57,6 +81,7 @@ test("search_products accepts any non-negative price an agent sends", async () =
     });
     assert.notEqual(result?.isError, true, `${maxPrice}: ${result?.content?.[0]?.text}`);
     assert.ok(Array.isArray(result?.structuredContent?.products));
+    assert.equal(typeof result?.structuredContent?.hasMore, "boolean");
   }
 });
 
@@ -67,23 +92,29 @@ test("search_products tells the agent to set currency with maxPrice", async () =
 });
 
 test("compare_products rejects duplicate IDs up front; get_product reports a missing product", async () => {
-  const id = randomUUID();
+  const id = `shopify:${randomUUID()}:42`;
   const duplicate = await call("compare_products", { productIds: [id, id.toUpperCase()] });
   assert.ok(duplicate.error || duplicate.result?.isError, JSON.stringify(duplicate));
 
-  const missing = await call("get_product", { productId: randomUUID() });
+  const old = await call("get_product", { productId: randomUUID() });
+  assert.ok(old.error || old.result?.isError, "internal UUIDs are no longer product IDs");
+
+  const missing = await call("get_product", { productId: `shopify:${randomUUID()}:1` });
   assert.equal(missing.result?.isError, true);
   assert.equal(missing.result?.content?.[0]?.text, "Product not found.");
 });
 
-test("REST search still takes query strings", async () => {
+test("REST search still takes query strings, and pages by cursor", async () => {
   const server = app.getHttpServer();
   const ok = await request(server).get(
-    "/api/products?currency=USD&maxPrice=19.999&inStock=true&limit=5",
+    "/api/products?currency=USD&maxPrice=19.999&inStock=true&limit=5&country=US",
   );
   assert.equal(ok.status, 200, ok.text);
-  assert.equal(ok.body.limit, 5);
-  for (const query of ["currency=USD&maxPrice=cheap", "maxPrice=10"]) {
+  assert.ok(Array.isArray(ok.body.products));
+  assert.equal(typeof ok.body.hasMore, "boolean");
+  assert.equal(typeof ok.body.partial, "boolean");
+  assert.ok(Array.isArray(ok.body.unavailable));
+  for (const query of ["currency=USD&maxPrice=cheap", "maxPrice=10", "cursor=forged.cursor"]) {
     assert.equal((await request(server).get(`/api/products?${query}`)).status, 400, query);
   }
   assert.equal((await request(server).get("/api/products?q=mug")).status, 200);

@@ -1,8 +1,11 @@
 import Link from "next/link";
 import Image from "next/image";
 import { AccountMenu } from "@/features/account/account-menu";
+import { loadAccount } from "@/features/account/session";
 
-export function Header() {
+export async function Header() {
+  // Resolved on the server, so the first paint already shows LOGIN or ACCOUNT.
+  const account = await loadAccount();
   return (
     <header className="relative z-20 flex min-h-14 shrink-0 items-center justify-between gap-4 border-b border-ink px-5 sm:min-h-16 sm:px-8">
       <Link
@@ -26,7 +29,7 @@ export function Header() {
         <Link href="/docs" className="btn-link">
           Docs
         </Link>
-        <AccountMenu />
+        <AccountMenu initial={account} />
       </nav>
     </header>
   );

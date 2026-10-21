@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useState, type FormEvent } from "react";
 import { authClient } from "./auth-client";
@@ -24,27 +25,32 @@ type Pending = "email" | "google" | null;
  * session on a later request without the OAuth query, so for an MCP client's sign-in both methods
  * return here, and once signed in this page resumes the authorization (consent, then the client).
  */
-export function SignIn() {
+/** `resuming`: the server saw a session, so start on "Continuing…" rather than the form. */
+export function SignIn({ resuming: signedIn = false }: { resuming?: boolean }) {
   const router = useRouter();
   const { leaving, leave } = useLeave();
   const [pending, setPending] = useState<Pending>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [fieldError, setFieldError] = useState("");
   const [error, setError] = useState("");
-  const [resuming, setResuming] = useState(false);
+  const [resuming, setResuming] = useState(signedIn);
+  // Signed in, but the assistant's request couldn't be resumed (expired, or a forged `sig`):
+  // the form makes no sense for someone already signed in.
+  const [stuck, setStuck] = useState(false);
   const emailId = useId();
   const emailErrorId = useId();
 
   useEffect(() => {
     void (async () => {
       const { data: session } = await authClient.getSession();
-      if (!session) return;
+      // The session ended between the server render and now: show the form after all.
+      if (!session) return setResuming(false);
       if (!fromOAuth()) return router.replace("/profile");
       setResuming(true);
       const { data, error } = await authClient.oauth2.continue({ selected: true });
       if (error || !data?.url) {
         setResuming(false);
-        setError("Could not continue. Start the connection again from your assistant.");
+        setStuck(true);
         return;
       }
       leave(() => window.location.assign(data.url));
@@ -90,7 +96,17 @@ export function SignIn() {
       <Slip label="Login" leaving={leaving} className="max-w-md p-6 sm:p-10">
         <h1 className="caps text-headline font-bold text-heading">Login</h1>
 
-        {resuming ? (
+        {stuck ? (
+          <div role="alert" className="mt-6 animate-stamp">
+            <p className="text-base text-heading">
+              You're signed in, but we couldn't continue connecting your assistant. Start the
+              connection again from your assistant.
+            </p>
+            <Link href="/profile" className="btn-link mt-6 inline-block">
+              Go to your profile
+            </Link>
+          </div>
+        ) : resuming ? (
           <p role="status" className="mt-6 text-base text-heading">
             Signed in. Continuing…
           </p>

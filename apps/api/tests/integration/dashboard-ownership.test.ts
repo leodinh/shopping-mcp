@@ -100,14 +100,10 @@ test("each signed-in User sees only their own stores and can act only on them", 
   );
 
   // Bob cannot touch Alice's store: it looks like it doesn't exist.
-  for (const action of ["sync", "disconnect"]) {
-    const response = await post(`/api/seller/stores/${aliceStore}/${action}`, bob);
-    assert.equal(response.status, 404, action);
-  }
+  assert.equal((await post(`/api/seller/stores/${aliceStore}/disconnect`, bob)).status, 404);
   assert.equal(await enabled(aliceStore), true);
 
   // Alice can.
-  assert.equal((await post(`/api/seller/stores/${aliceStore}/sync`, alice)).status, 202);
   assert.equal((await post(`/api/seller/stores/${aliceStore}/disconnect`, alice)).status, 200);
   assert.equal(await enabled(aliceStore), false);
   assert.equal(await enabled(bobStore), true);
@@ -116,12 +112,10 @@ test("each signed-in User sees only their own stores and can act only on them", 
 test("signed out or with a forged cookie, the dashboard and every store action are refused", async () => {
   assert.equal(await me(""), null);
   const someone = randomUUID();
-  for (const action of ["sync", "disconnect"]) {
-    assert.equal((await post(`/api/seller/stores/${someone}/${action}`)).status, 401, action);
-  }
+  assert.equal((await post(`/api/seller/stores/${someone}/disconnect`)).status, 401);
   const forged = "better-auth.session_token=forged.signature";
   assert.equal(await me(forged), null);
-  assert.equal((await post(`/api/seller/stores/${someone}/sync`, forged)).status, 401);
+  assert.equal((await post(`/api/seller/stores/${someone}/disconnect`, forged)).status, 401);
 });
 
 test("signing out ends the session", async () => {

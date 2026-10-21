@@ -1,9 +1,8 @@
 import { shopifyApiKey, shopifyApiSecret } from "@shopping-mcp/config";
 
-// ponytail: pinned to 2025-10, the version Shopify already served us once 2025-01 expired.
-// 2025-10 expires around 2026-10; upgrading means moving the catalog query off the
-// deprecated Product.images to Product.media.
-export const SHOPIFY_API_VERSION = "2025-10";
+// ponytail: pinned; Shopify supports each version for a year (2026-10 until October 2027).
+// Upgrade before then; check field changes on shopify.dev/docs/api/usage/versioning.
+export const SHOPIFY_API_VERSION = "2026-10";
 
 export type ShopifyToken = {
   accessToken: string;

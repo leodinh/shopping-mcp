@@ -47,7 +47,7 @@ export async function handleShopifyWebhook(
       break;
     case "shop/redact": {
       // Sent 48h after uninstall: delete everything held for the shop (cascades to its
-      // connection, products, and sync runs).
+      // connection).
       const owners = db
         .select({ id: merchantConnections.merchantId })
         .from(merchantConnections)

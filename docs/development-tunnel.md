@@ -42,4 +42,4 @@ Then open `https://shopping-app-dev.leodev.online`, and add `https://shopping-ap
 Also register the tunnel's callback URLs where providers need them:
 
 - Google: `https://shopping-api-dev.leodev.online/api/auth/callback/google`
-- Shopify: `https://shopping-api-dev.leodev.online/api/connections/shopify/callback` as `SHOPIFY_REDIRECT_URI` and in the app's allowed redirect URLs. Shopify webhooks only deliver to HTTPS.
+- Shopify: `https://shopping-api-dev.leodev.online/api/connections/shopify/callback` in the app's allowed redirect URLs. The API derives its callback from `API_ORIGIN`, so there's nothing else to set. Shopify webhooks only deliver to HTTPS.

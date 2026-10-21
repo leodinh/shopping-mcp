@@ -3,20 +3,28 @@ import {
   type StoreConnectionDeps,
   type StoreConnectionFailure,
 } from "@shopping-mcp/commerce/store-connection";
-import { shopifyConnectRequestSchema, type ShopifyConnectResponse } from "@shopping-mcp/contracts";
+import {
+  connectFailureMessages,
+  shopifyConnectRequestSchema,
+  type ShopifyConnectResponse,
+} from "@shopping-mcp/contracts";
 
-const failures: Record<StoreConnectionFailure, [status: number, error: string]> = {
-  invalid_shop: [400, "Invalid shop domain"],
-  invalid_hmac: [403, "Invalid HMAC"],
-  invalid_state: [403, "Invalid state"],
-  shop_taken: [409, "Shop already connected"],
-  token_exchange_failed: [502, "Shopify did not grant access. Try connecting again."],
-  shop_verification_failed: [502, "Shopify did not confirm the store. Try connecting again."],
+const statuses: Record<StoreConnectionFailure, number> = {
+  invalid_shop: 400,
+  shop_not_found: 404,
+  invalid_hmac: 403,
+  invalid_state: 403,
+  shop_taken: 409,
+  token_exchange_failed: 502,
+  shop_verification_failed: 502,
 };
 
+/** For the profile's own request: the status, the reason code, and the message to show. */
 export function storeConnectionFailure(reason: StoreConnectionFailure) {
-  const [status, error] = failures[reason];
-  return Response.json({ error }, { status });
+  return Response.json(
+    { error: connectFailureMessages[reason], reason },
+    { status: statuses[reason] },
+  );
 }
 
 /** Begins connecting a Shopify store for the signed-in User (null when signed out). */
@@ -44,6 +52,9 @@ export async function handleShopifyConnect(
     return response;
   } catch (error) {
     console.error("Shopify connect failed", error);
-    return Response.json({ error: "Shopify connect unavailable." }, { status: 503 });
+    return Response.json(
+      { error: connectFailureMessages.unavailable, reason: "unavailable" },
+      { status: 503 },
+    );
   }
 }

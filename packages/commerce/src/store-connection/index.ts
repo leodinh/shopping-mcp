@@ -15,10 +15,16 @@ import {
   type ShopifyToken,
 } from "../connectors/shopify/token";
 import { disableConnection } from "./disable";
-import { normalizeShopDomain, shopifyAuthorizeUrl, validShopifyHmac } from "./shopify";
+import {
+  normalizeShopDomain,
+  shopifyAuthorizeUrl,
+  shopifyShopExists,
+  validShopifyHmac,
+  type ShopExists,
+} from "./shopify";
 import { registerShopifyWebhooks } from "./webhooks";
 
-export type { ExchangeCode, ShopIdentity, ShopifyToken, VerifyShop };
+export type { ExchangeCode, ShopExists, ShopIdentity, ShopifyToken, VerifyShop };
 
 const ATTEMPT_TTL_MS = 10 * 60 * 1000;
 
@@ -26,6 +32,7 @@ export type StoreConnectionDeps = {
   db?: Database;
   exchangeCode?: ExchangeCode;
   verifyShop?: VerifyShop;
+  shopExists?: ShopExists;
   registerWebhooks?: (shop: string, accessToken: string) => Promise<void>;
 };
 
@@ -33,7 +40,7 @@ export { handleShopifyWebhook, type ShopifyWebhook } from "./webhooks";
 
 export type BeginStoreConnectionResult =
   | { ok: true; authorizationUrl: string; browserBinding: string; expiresAt: Date }
-  | { ok: false; reason: "invalid_shop" | "shop_taken" };
+  | { ok: false; reason: "invalid_shop" | "shop_taken" | "shop_not_found" };
 
 export type CompleteStoreConnectionResult =
   | { ok: true; merchantId: string }
@@ -68,6 +75,10 @@ export async function beginStoreConnection(
   const shop = normalizeShopDomain(shopInput);
   if (!shop) return { ok: false, reason: "invalid_shop" };
   if (await ownedByAnotherUser(shop, userId, db)) return { ok: false, reason: "shop_taken" };
+  // A well-formed domain can still name no shop: check before sending the browser to Shopify.
+  if (!(await (deps.shopExists ?? shopifyShopExists)(shop))) {
+    return { ok: false, reason: "shop_not_found" };
+  }
   const state = randomBytes(16).toString("hex");
   const browserBinding = randomBytes(16).toString("hex");
   const expiresAt = new Date(Date.now() + ATTEMPT_TTL_MS);

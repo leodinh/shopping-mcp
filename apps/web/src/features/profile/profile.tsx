@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import {
+  connectFailureMessages,
   shopifyConnectResponseSchema,
   type SellerResponse,
   type SellerStatus,
@@ -38,7 +39,14 @@ function Row({ term, children }: { term: string; children: React.ReactNode }) {
  * The signed-in User's account and their connected stores, printed as one receipt. The page loads
  * `initial` on the server (null when the API was unreachable); actions refetch here.
  */
-export function Profile({ initial }: { initial: SellerResponse | null }) {
+export function Profile({
+  initial,
+  notice: initialNotice = "",
+}: {
+  initial: SellerResponse | null;
+  /** Shown on arrival, e.g. why connecting a store just failed. */
+  notice?: string;
+}) {
   const router = useRouter();
   const { leaving, leave } = useLeave();
   const [seller, setSeller] = useState(initial);
@@ -48,11 +56,13 @@ export function Profile({ initial }: { initial: SellerResponse | null }) {
   const [connecting, setConnecting] = useState(false);
   const [shopError, setShopError] = useState("");
   const connectButton = useRef<HTMLButtonElement>(null);
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState(initialNotice);
   const shopId = useId();
 
-  console.log("initial", initial);
-  console.log("unavailable", unavailable);
+  // Drop `?connect_error` once shown, so a refresh or a shared link doesn't repeat the failure.
+  useEffect(() => {
+    if (initialNotice) router.replace("/profile", { scroll: false });
+  }, [initialNotice, router]);
 
   async function reload() {
     try {
@@ -105,15 +115,15 @@ export function Profile({ initial }: { initial: SellerResponse | null }) {
       const parsed = shopifyConnectResponseSchema.safeParse(payload);
       if (!response.ok || !parsed.success) {
         setBusy(null);
-        setNotice(
-          errorFrom(payload) ?? "Could not start the Shopify connection. Check the domain.",
-        );
+        setNotice(errorFrom(payload) ?? connectFailureMessages.unavailable);
         return;
       }
       leave(() => window.location.assign(parsed.data.authorizationUrl));
     } catch {
       setBusy(null);
-      setNotice("Network error. Try again.");
+      setNotice(
+        "Connect failed: we couldn't reach the server. Check your connection and try again.",
+      );
     }
   }
 

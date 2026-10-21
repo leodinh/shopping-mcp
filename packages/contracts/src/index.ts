@@ -20,6 +20,10 @@ export {
   type SellerResponse,
 } from "./seller";
 export {
+  connectFailureSchema,
+  connectFailureMessages,
+  connectFailureMessage,
+  type ConnectFailure,
   shopifyConnectRequestSchema,
   shopifyConnectResponseSchema,
   type ShopifyConnectRequest,

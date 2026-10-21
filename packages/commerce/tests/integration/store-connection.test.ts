@@ -9,6 +9,7 @@ import {
   completeStoreConnection,
   disconnectStore,
   type ExchangeCode,
+  type ShopExists,
   type VerifyShop,
 } from "@shopping-mcp/commerce/store-connection";
 import {
@@ -67,8 +68,11 @@ function signed(params: Record<string, string>, secret = "test-secret") {
   return new URLSearchParams({ ...params, hmac });
 }
 
+// Stands in for asking Shopify whether the shop exists; tests never reach Shopify.
+const shopExists: ShopExists = async () => true;
+
 async function begin(shop: string, userId: string) {
-  const result = await beginStoreConnection(shop, userId, { db });
+  const result = await beginStoreConnection(shop, userId, { db, shopExists });
   assert.ok(result.ok, `begin failed: ${JSON.stringify(result)}`);
   const state = new URL(result.authorizationUrl).searchParams.get("state")!;
   return { ...result, state };
@@ -152,6 +156,22 @@ test("a signed-in User connects a shop: they own the new Merchant and the shop i
     },
   );
   assert.deepEqual(replay, { ok: false, reason: "invalid_state" });
+});
+
+test("begin refuses a shop Shopify doesn't have, before sending anyone to Shopify", async () => {
+  const shop = uniqueShop();
+  const asked: string[] = [];
+  const result = await beginStoreConnection(shop, await newUser(), {
+    db,
+    shopExists: async (s) => (asked.push(s), false),
+  });
+  assert.deepEqual(result, { ok: false, reason: "shop_not_found" });
+  assert.deepEqual(asked, [shop]);
+  // Nothing was started for the shop.
+  assert.equal(
+    (await db.select().from(oauthAttempts).where(eq(oauthAttempts.shop, shop))).length,
+    0,
+  );
 });
 
 test("begin rejects anything that is not a *.myshopify.com domain", async () => {

@@ -51,6 +51,7 @@ test("a signed-in User connects a shop over HTTP and returns to their profile ow
         refreshTokenExpiresAt: null,
       }),
       verifyShop: async () => ({ gid: "gid://shopify/Shop/1", name: "UI Shop" }),
+      shopExists: async () => true,
     };
     const started = await handleShopifyConnect(
       connectRequest("ui-shop.myshopify.com"),
@@ -87,6 +88,28 @@ test("a signed-in User connects a shop over HTTP and returns to their profile ow
     assert.deepEqual(
       stores.map((store) => [store.slug, store.name]),
       [["ui-shop.myshopify.com", "UI Shop"]],
+    );
+
+    // A failed callback goes back to the profile with the reason, never to a bare JSON page:
+    // here the attempt was already used, then a callback whose signature doesn't verify.
+    const replay = await handleShopifyCallback(
+      new Request(`http://localhost:3001/api/connections/shopify/callback?${query}`, {
+        headers: { cookie: binding!.split(";")[0] },
+      }),
+      deps,
+    );
+    assert.equal(replay.status, 302);
+    assert.equal(
+      replay.headers.get("location"),
+      "http://localhost:3000/profile?connect_error=invalid_state",
+    );
+    const forged = await handleShopifyCallback(
+      new Request("http://localhost:3001/api/connections/shopify/callback?shop=x&hmac=bad"),
+      deps,
+    );
+    assert.equal(
+      forged.headers.get("location"),
+      "http://localhost:3000/profile?connect_error=invalid_hmac",
     );
   } finally {
     await drop();

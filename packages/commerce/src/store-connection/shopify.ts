@@ -42,3 +42,24 @@ export function validShopifyHmac(searchParams: URLSearchParams) {
   const actual = Buffer.from(hmac);
   return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
+
+/** Whether Shopify has the shop, asked before anyone is sent there. */
+export type ShopExists = (shop: string) => Promise<boolean>;
+
+/**
+ * Asks for the very page the browser would be sent to, without following redirects. A shop that
+ * doesn't exist answers 404 with Shopify's "will be right back" page, which would strand the store
+ * owner outside our app. Fails open: anything but a definite 404 (a real shop's 3xx, a closed or
+ * bot-protected store, a timeout) lets the connection go ahead, so a real store is never blocked.
+ */
+export async function shopifyShopExists(shop: string, send: typeof fetch = fetch) {
+  try {
+    const response = await send(`https://${shop}/admin/oauth/authorize`, {
+      redirect: "manual",
+      signal: AbortSignal.timeout(3000),
+    });
+    return response.status !== 404;
+  } catch {
+    return true;
+  }
+}

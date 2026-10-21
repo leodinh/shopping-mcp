@@ -6,6 +6,7 @@ import { storeConnectionFailure } from "../src/shopify/connect";
 test("each Store connection failure maps to an HTTP status the seller UI can show", async () => {
   const expected = {
     invalid_shop: 400,
+    shop_not_found: 404,
     invalid_hmac: 403,
     invalid_state: 403,
     shop_taken: 409,
@@ -15,7 +16,8 @@ test("each Store connection failure maps to an HTTP status the seller UI can sho
   for (const [reason, status] of Object.entries(expected)) {
     const response = storeConnectionFailure(reason as StoreConnectionFailure);
     assert.equal(response.status, status, reason);
-    const body = (await response.json()) as { error: unknown };
-    assert.equal(typeof body.error, "string", reason);
+    const body = (await response.json()) as { error: string; reason: string };
+    assert.match(body.error, /^Connect failed: /, reason);
+    assert.equal(body.reason, reason);
   }
 });

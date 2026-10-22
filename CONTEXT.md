@@ -53,3 +53,10 @@ _Avoid_: connector, sync source
 **Live search**:
 A search asked of every eligible store at once, merged round-robin so each Merchant gets balanced exposure, paged by a signed cursor. A store that doesn't answer makes the page **partial**; it is retried on the next page.
 _Avoid_: catalog sync, index (an index is planned separately, Phase 6)
+
+**Store outcome**:
+How one store's results on a search page were obtained: `cache_hit` (fresh from the cache), `cache_miss` (asked the store now), `stale_fallback` (the store didn't answer; older cached results, see `fetchedAt`), `provider_error` / `provider_timeout` (missing results). Only missing results make a page **partial**.
+_Avoid_: cache status, sync state
+
+**Stale fallback**:
+Serving a store's cached page, up to a strict age since it was fetched, because the store didn't answer now. Never for lookups or checkout, never for a store that's no longer connected.

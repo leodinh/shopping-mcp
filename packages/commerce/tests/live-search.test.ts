@@ -174,6 +174,7 @@ test("the search fails only when every store fails; no stores is an empty succes
     hasMore: false,
     partial: false,
     unavailable: [],
+    stores: [],
   });
 });
 
@@ -270,4 +271,46 @@ test("lookup keeps the asked order, skips missing products, and reports unreacha
 
   stores[0].fail = stores[1].fail = true;
   await assert.rejects(live.get([id(stores[0], "100")]), AllStoresUnavailable);
+});
+
+test("each store reports how its results were obtained; only missing results make a page partial", async () => {
+  const stores = [store(1, 2), store(2, 2)];
+  stores[1].fail = true;
+  const before = Date.now();
+  const result = await search(service(stores), { limit: 4 });
+  assert.deepEqual(
+    result.stores.map((s) => [s.name, s.outcome]),
+    [
+      ["Store 1", "cache_miss"],
+      ["Store 2", "provider_error"],
+    ],
+  );
+  assert.equal(result.stores[1].fetchedAt, null);
+  assert.ok(Date.parse(result.stores[0].fetchedAt!) >= before);
+  assert.equal(result.partial, true);
+  for (const product of result.products) {
+    assert.equal(product.fetchedAt, result.stores[0].fetchedAt, "products carry their fetch time");
+  }
+});
+
+test("stale data alone doesn't make a page partial; it shows in the store's outcome and age", async () => {
+  const fetchedAt = Date.now() - 10 * 60_000;
+  const stale = store(1, 2);
+  const live = new LiveProductSearchService({
+    providers: async () => [stale],
+    cursorSecret: SECRET,
+    pages: {
+      limiter: { run: (_key: string, _deadline: number, task: () => Promise<unknown>) => task() },
+      async fetch(provider: ProductProvider, query: ProviderSearchQuery) {
+        const page = await provider.search(query, new AbortController().signal);
+        return { outcome: "stale_fallback" as const, page, fetchedAt };
+      },
+    } as never,
+  });
+  const result = await live.search(searchSchema.parse({ limit: 2 }));
+  assert.equal(result.partial, false);
+  assert.deepEqual(result.unavailable, []);
+  assert.equal(result.stores[0].outcome, "stale_fallback");
+  assert.equal(result.stores[0].fetchedAt, new Date(fetchedAt).toISOString());
+  assert.equal(result.products[0].fetchedAt, new Date(fetchedAt).toISOString());
 });

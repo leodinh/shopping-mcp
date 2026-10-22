@@ -99,7 +99,7 @@ export function SignIn({ resuming: signedIn = false }: { resuming?: boolean }) {
         {stuck ? (
           <div role="alert" className="mt-6 animate-stamp">
             <p className="text-base text-heading">
-              You're signed in, but we couldn't continue connecting your assistant. Start the
+              You’re signed in, but we couldn’t continue connecting your assistant. Start the
               connection again from your assistant.
             </p>
             <Link href="/profile" className="btn-link mt-6 inline-block">

@@ -10,6 +10,7 @@ export {
   type Price,
   type CatalogProduct,
   type SearchResult,
+  type StoreOutcome,
   type UnavailableStore,
 } from "./catalog";
 export {

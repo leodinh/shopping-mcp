@@ -188,6 +188,8 @@ export class ShopifyProductProvider implements ProductProvider {
     readonly merchant: ProviderMerchant,
     private readonly shop: string,
     private readonly graphql: Graphql,
+    /** The connection's generation; a reconnect changes it, so old cached pages are never reused. */
+    readonly cacheScope?: string,
   ) {}
 
   async search(query: ProviderSearchQuery, signal: AbortSignal): Promise<ProviderPage> {
@@ -295,6 +297,7 @@ export async function shopifyProviders(
       merchantId: merchants.id,
       name: merchants.name,
       slug: merchants.slug,
+      verifiedAt: merchantConnections.verifiedAt,
     })
     .from(merchantConnections)
     .innerJoin(merchants, eq(merchants.id, merchantConnections.merchantId))
@@ -315,6 +318,8 @@ export async function shopifyProviders(
           { id: row.merchantId, name: row.name, slug: row.slug },
           row.shop!,
           shopifyGraphql(row.shop!, row.connectionId, db),
+          // Every connect sets verified_at anew, so a reconnect starts with an empty cache.
+          `shopify:${row.connectionId}:${row.verifiedAt?.getTime() ?? 0}`,
         ),
     );
 }

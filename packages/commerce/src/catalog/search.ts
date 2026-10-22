@@ -1,12 +1,22 @@
-import { betterAuthSecret, searchStoreTimeoutMs } from "@shopping-mcp/config";
+import {
+  betterAuthSecret,
+  searchCacheFreshMs,
+  searchCacheMaxAgeMs,
+  searchPodConcurrency,
+  searchStoreConcurrency,
+  searchStoreTimeoutMs,
+} from "@shopping-mcp/config";
 import {
   formatProductId,
   parseProductId,
   type CatalogProduct,
   type SearchQuery,
   type SearchResult,
+  type StoreOutcome,
   type UnavailableStore,
 } from "@shopping-mcp/contracts";
+import { Limiter } from "./cache/limiter";
+import { PageFetcher } from "./cache/page-fetcher";
 import { maxMinorUnits } from "./money";
 import {
   cursorKey,
@@ -24,7 +34,7 @@ export class AllStoresUnavailable extends Error {}
 
 export type LookupResult = { products: CatalogProduct[]; unavailable: UnavailableStore[] };
 
-/** Search and lookup over live stores. Phase 6 may put an index behind the same interface. */
+/** Search and lookup over live stores (search pages may be served from a short-lived cache). */
 export interface ProductSearchService {
   search(query: SearchQuery): Promise<SearchResult>;
   /** Products by ID, in the order asked; IDs that no longer exist are absent. */
@@ -37,9 +47,30 @@ export type LiveSearchOptions = {
   timeoutMs?: number;
   /** Stores queried at once. */
   concurrency?: number;
+  /** How store pages are fetched: cache, cross-pod locks, per-pod limits. Default: live only. */
+  pages?: PageFetcher;
   cursorSecret?: string;
   now?: () => number;
 };
+
+/** Live fetching within this pod's configured limits, no cache. */
+export function livePages() {
+  return new PageFetcher({
+    limiter: new Limiter(searchStoreConcurrency(), searchPodConcurrency()),
+    freshMs: searchCacheFreshMs(),
+    maxAgeMs: searchCacheMaxAgeMs(),
+  });
+}
+
+type Outcome = StoreOutcome["outcome"];
+// When a store is fetched more than once on a page, report the worst of what happened.
+const SEVERITY: Outcome[] = [
+  "cache_hit",
+  "cache_miss",
+  "stale_fallback",
+  "provider_error",
+  "provider_timeout",
+];
 
 // Refill fetches per store per page: bounds the work when filters reject most of a store's results.
 const MAX_FETCHES_PER_STORE = 5;
@@ -52,12 +83,21 @@ type StoreRun = {
   /** Provider position after the page the buffer came from (skips what the provider filtered). */
   pageEnd: string | null;
   providerHasMore: boolean;
+  /** When the store served the page in the buffer. */
+  bufferFetchedAt: number;
   fetches: number;
   failed: boolean;
   attempted: boolean;
+  outcome?: Outcome;
+  /** Oldest data used from this store on this page. */
+  fetchedAt?: number;
 };
 
-const toCatalogProduct = (product: ExternalProduct, provider: ProductProvider): CatalogProduct => ({
+const toCatalogProduct = (
+  product: ExternalProduct,
+  provider: ProductProvider,
+  fetchedAt: number,
+): CatalogProduct => ({
   ...product,
   id: formatProductId({
     provider: product.provider,
@@ -65,6 +105,7 @@ const toCatalogProduct = (product: ExternalProduct, provider: ProductProvider): 
     externalId: product.externalId,
   }),
   merchant: provider.merchant,
+  fetchedAt: new Date(fetchedAt).toISOString(),
 });
 
 /** Runs `tasks` with at most `limit` in flight. */
@@ -87,12 +128,14 @@ export class LiveProductSearchService implements ProductSearchService {
   private readonly timeoutMs: number;
   private readonly concurrency: number;
   private readonly now: () => number;
+  private readonly pages: PageFetcher;
 
   constructor(private readonly options: LiveSearchOptions) {
     this.key = cursorKey(options.cursorSecret ?? betterAuthSecret());
     this.timeoutMs = options.timeoutMs ?? searchStoreTimeoutMs();
     this.concurrency = options.concurrency ?? 8;
     this.now = options.now ?? Date.now;
+    this.pages = options.pages ?? livePages();
   }
 
   async search(query: SearchQuery): Promise<SearchResult> {
@@ -129,6 +172,7 @@ export class LiveProductSearchService implements ProductSearchService {
       buffer: [],
       pageEnd: null,
       providerHasMore: !position.done,
+      bufferFetchedAt: 0,
       fetches: 0,
       failed: false,
       attempted: false,
@@ -164,7 +208,7 @@ export class LiveProductSearchService implements ProductSearchService {
         }
         if (run.buffer.length === 0) break;
         const item = run.buffer.shift()!;
-        products.push(toCatalogProduct(item.product, run.provider));
+        products.push(toCatalogProduct(item.product, run.provider, run.bufferFetchedAt));
         // Advance only past what was returned; the rest of the buffer is fetched again next page.
         run.position.after = run.buffer.length === 0 && run.pageEnd ? run.pageEnd : item.cursor;
         turn = (turn + 1) % runs.length;
@@ -195,8 +239,17 @@ export class LiveProductSearchService implements ProductSearchService {
           )
         : null,
       hasMore,
+      // Missing results only: stale data is reported per store, not as partial.
       partial: unavailable.length > 0,
       unavailable,
+      stores: runs
+        .filter((run) => run.outcome)
+        .map((run) => ({
+          merchantId: run.provider.merchant.id,
+          name: run.provider.merchant.name,
+          outcome: run.outcome!,
+          fetchedAt: run.fetchedAt ? new Date(run.fetchedAt).toISOString() : null,
+        })),
     };
   }
 
@@ -219,9 +272,14 @@ export class LiveProductSearchService implements ProductSearchService {
           parts?.merchantId === provider.merchant.id ? [parts.externalId] : [],
         );
         try {
-          const products = await provider.get(wanted, options, AbortSignal.timeout(this.timeoutMs));
+          // Always live: lookups back prices that are acted on (compare, checkout).
+          const deadline = Date.now() + this.timeoutMs;
+          const products = await this.pages.limiter.run(provider.merchant.id, deadline, () =>
+            provider.get(wanted, options, AbortSignal.timeout(this.timeoutMs)),
+          );
+          const fetchedAt = Date.now();
           for (const product of products) {
-            const catalog = toCatalogProduct(product, provider);
+            const catalog = toCatalogProduct(product, provider, fetchedAt);
             found.set(catalog.id, catalog);
           }
         } catch (error) {
@@ -265,20 +323,26 @@ export class LiveProductSearchService implements ProductSearchService {
     run.fetches += 1;
     // Fetching only happens with an empty buffer, so the consumed position is where to resume.
     const after = run.position.after;
-    try {
-      const page = await run.provider.search(
-        { ...query, first, ...(after ? { after } : {}) },
-        AbortSignal.timeout(this.timeoutMs),
-      );
-      run.buffer = page.items;
-      run.pageEnd = page.end;
-      run.providerHasMore = page.hasMore;
-      // A page with nothing usable still moves the position past what the provider skipped.
-      if (!page.items.length && page.end) run.position.after = page.end;
-    } catch (error) {
-      console.error(`Search failed for ${run.provider.merchant.name}`, error);
+    const result = await this.pages.fetch(
+      run.provider,
+      { ...query, first, ...(after ? { after } : {}) },
+      Date.now() + this.timeoutMs,
+    );
+    if (!run.outcome || SEVERITY.indexOf(result.outcome) > SEVERITY.indexOf(run.outcome)) {
+      run.outcome = result.outcome;
+    }
+    if (!result.page) {
       run.failed = true;
       run.buffer = [];
+      return;
     }
+    const page = result.page;
+    run.buffer = page.items;
+    run.pageEnd = page.end;
+    run.providerHasMore = page.hasMore;
+    run.bufferFetchedAt = result.fetchedAt!;
+    run.fetchedAt = Math.min(run.fetchedAt ?? Infinity, result.fetchedAt!);
+    // A page with nothing usable still moves the position past what the provider skipped.
+    if (!page.items.length && page.end) run.position.after = page.end;
   }
 }

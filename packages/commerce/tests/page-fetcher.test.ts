@@ -268,3 +268,41 @@ test("the pod limits calls per store and overall, and waiting counts against the
   );
   await Promise.all([busy, second]);
 });
+
+test("a lock holder rechecks the cache first: fresh data that landed meanwhile is used, not refetched", async () => {
+  // Another pod commits between our read (a miss) and our acquire.
+  class Racing extends MemoryCache {
+    override async acquire(key: string, token: string, ttlMs: number) {
+      this.data.set(key, { page: page("theirs"), fetchedAt: Date.now() });
+      return super.acquire(key, token, ttlMs);
+    }
+  }
+  const cache = new Racing();
+  const shop = store();
+  const result = await fetcher(cache).fetch(shop, query, inSeconds(1));
+  assert.equal(result.outcome, "cache_hit");
+  assert.equal(result.page?.end, "theirs-1");
+  assert.equal(shop.calls, 0);
+  assert.equal(cache.locks.size, 0, "the lock is released");
+});
+
+test("Redis failing while waiting goes live, keeping stale data only as the fallback", async () => {
+  const clock = { now: Date.now() };
+  const cache = new MemoryCache();
+  cache.data.set(key(), { page: page("old"), fetchedAt: clock.now - 10 * MIN });
+  await cache.acquire(key(), "other-pod", 10_000);
+  const shop = store();
+  const waiting = fetcher(cache, clock).fetch(shop, query, inSeconds(1));
+  setTimeout(() => cache.failing.add("read"), 30); // Redis drops while we poll
+  const result = await waiting;
+  assert.equal(result.outcome, "cache_miss", "live data beats stale when Redis is gone");
+  assert.equal(shop.calls, 1);
+
+  const failingStore = store(() => new Error("down"));
+  const cache2 = new MemoryCache();
+  cache2.data.set(key(), { page: page("old"), fetchedAt: clock.now - 10 * MIN });
+  await cache2.acquire(key(), "other-pod", 10_000);
+  const waiting2 = fetcher(cache2, clock).fetch(failingStore, query, inSeconds(1));
+  setTimeout(() => cache2.failing.add("read"), 30);
+  assert.equal((await waiting2).outcome, "stale_fallback", "stale only when the store fails too");
+});

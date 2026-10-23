@@ -29,6 +29,15 @@ const isTimeout = (error: unknown) =>
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Cache writes are best-effort: if Redis is gone the lock expires on its own. */
+async function quietly(write: Promise<unknown>) {
+  try {
+    await write;
+  } catch (error) {
+    if (!(error instanceof CacheUnavailable)) throw error;
+  }
+}
+
 /**
  * Fetches one store's search page through the shared cache:
  * fresh hit → else join an identical fetch in this pod → else take the page's lock and fetch.
@@ -63,6 +72,12 @@ export class PageFetcher {
     return fetching;
   }
 
+  /**
+   * One deadline-bounded loop: read the cache; serve fresh data; otherwise take the page's lock
+   * and fetch, or (lock held elsewhere, or lost the race) wait briefly and look again. Every pass
+   * waits before repeating, so it never spins; at the deadline: eligible stale data or a timeout.
+   * Redis failing at any point means a live fetch that doesn't write (stale only if that fails).
+   */
   private async cached(
     cache: PageCache,
     key: string,
@@ -70,50 +85,41 @@ export class PageFetcher {
     query: ProviderSearchQuery,
     deadline: number,
   ): Promise<PageResult> {
-    let entry: CachedPage | null;
-    try {
-      entry = (await cache.read(key)).entry;
-    } catch (error) {
-      if (!(error instanceof CacheUnavailable)) throw error;
-      return this.live(provider, query, deadline, null);
-    }
-    if (entry && this.fresh(entry)) return hit("cache_hit", entry);
-    let stale = entry && this.servable(entry) ? entry : null;
     const token = randomUUID();
+    let stale: CachedPage | null = null;
 
-    for (;;) {
-      let acquired: boolean;
+    while (Date.now() < deadline) {
+      let state: { entry: CachedPage | null; locked: boolean };
       try {
-        // The lock outlives the holder's deadline a little, so it can't expire mid-fetch.
-        acquired = await cache.acquire(key, token, Math.max(1, deadline - Date.now()) + 1000);
+        state = await cache.read(key);
       } catch (error) {
         if (!(error instanceof CacheUnavailable)) throw error;
-        // Ambiguous (maybe we hold it): fetch, but never write; the lock expires on its own.
         return this.live(provider, query, deadline, stale);
       }
-      if (acquired) return this.fetchAndStore(cache, key, token, provider, query, deadline, stale);
+      if (state.entry && this.fresh(state.entry)) return hit("cache_hit", state.entry);
+      if (state.entry && this.servable(state.entry)) stale = state.entry;
 
-      // Someone else is fetching this page: wait for it within our deadline.
-      for (;;) {
-        const left = deadline - Date.now();
-        if (left <= 0)
-          return stale ? hit("stale_fallback", stale) : { outcome: "provider_timeout" };
-        await sleep(Math.min(this.pollMs, left));
-        let state: { entry: CachedPage | null; locked: boolean };
+      if (!state.locked) {
+        let acquired: boolean;
         try {
-          state = await cache.read(key);
+          // The lock outlives our deadline a little, so it can't expire mid-fetch.
+          acquired = await cache.acquire(key, token, Math.max(1, deadline - Date.now()) + 1000);
         } catch (error) {
           if (!(error instanceof CacheUnavailable)) throw error;
-          return stale ? hit("stale_fallback", stale) : this.live(provider, query, deadline, null);
+          // Ambiguous (maybe we hold it): fetch, but never write; the lock expires on its own.
+          return this.live(provider, query, deadline, stale);
         }
-        if (state.entry && this.fresh(state.entry)) return hit("cache_hit", state.entry);
-        if (state.entry && this.servable(state.entry)) stale = state.entry;
-        if (!state.locked) break; // holder gave up without fresh data: try to take the lock
+        if (acquired)
+          return this.holdLockAndFetch(cache, key, token, provider, query, deadline, stale);
       }
+      // Another pod is fetching this page (or won the race for the lock): wait, then look again.
+      await sleep(Math.max(0, Math.min(this.pollMs, deadline - Date.now())));
     }
+    return stale ? hit("stale_fallback", stale) : { outcome: "provider_timeout" };
   }
 
-  private async fetchAndStore(
+  /** We hold the lock: recheck, fetch, commit if still ours, and always let the lock go. */
+  private async holdLockAndFetch(
     cache: PageCache,
     key: string,
     token: string,
@@ -122,20 +128,31 @@ export class PageFetcher {
     deadline: number,
     stale: CachedPage | null,
   ): Promise<PageResult> {
-    const result = await this.live(provider, query, deadline, stale);
     try {
-      if (result.outcome === "cache_miss") {
-        const entry = { page: result.page!, fetchedAt: result.fetchedAt! };
-        // Kept until it's too old even for a stale fallback.
-        await cache.commit(key, token, entry, this.options.maxAgeMs);
-      } else {
-        await cache.release(key, token);
+      // Another pod may have committed between our read and our acquire: don't refetch then.
+      try {
+        const { entry } = await cache.read(key);
+        if (entry && this.fresh(entry)) return hit("cache_hit", entry);
+        if (entry && this.servable(entry)) stale = entry;
+      } catch (error) {
+        if (!(error instanceof CacheUnavailable)) throw error;
+        // Redis went away: still fetch; the commit below will fail quietly.
       }
-    } catch (error) {
-      if (!(error instanceof CacheUnavailable)) throw error;
-      // The lock expires on its own; the page itself is still good for this request.
+      if (Date.now() >= deadline) {
+        return stale ? hit("stale_fallback", stale) : { outcome: "provider_timeout" };
+      }
+      const result = await this.live(provider, query, deadline, stale);
+      if (result.outcome === "cache_miss") {
+        // Kept until it's too old even for a stale fallback. Refused if we no longer own the
+        // lock or newer data is stored.
+        const entry = { page: result.page!, fetchedAt: result.fetchedAt! };
+        await quietly(cache.commit(key, token, entry, this.options.maxAgeMs));
+      }
+      return result;
+    } finally {
+      // A no-op once the commit released it; only ever deletes our own lock.
+      await quietly(cache.release(key, token));
     }
-    return result;
   }
 
   /** Asks the store itself, within this pod's limits and the deadline. */

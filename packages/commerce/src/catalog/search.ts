@@ -108,6 +108,12 @@ const toCatalogProduct = (
   fetchedAt: new Date(fetchedAt).toISOString(),
 });
 
+/** The round-robin order a new search visits stores in. Resumed searches keep the cursor's order. */
+// ponytail: identity for now; promoted, relevance or reliability ranking goes here.
+export function orderStores(providers: ProductProvider[]): ProductProvider[] {
+  return providers;
+}
+
 /** Runs `tasks` with at most `limit` in flight. */
 async function bounded(tasks: Array<() => Promise<void>>, limit: number) {
   const queue = [...tasks];
@@ -157,7 +163,7 @@ export class LiveProductSearchService implements ProductSearchService {
       session = { stores: kept, next };
     } else {
       session = {
-        stores: eligible.map((provider) => ({
+        stores: orderStores(eligible).map((provider) => ({
           merchantId: provider.merchant.id,
           after: null,
           done: false,
@@ -187,11 +193,17 @@ export class LiveProductSearchService implements ProductSearchService {
       (run.buffer.length > 0 || (run.providerHasMore && run.fetches < MAX_FETCHES_PER_STORE));
 
     while (products.length < query.limit && runs.some(live)) {
-      // Fill every live store whose buffer is empty, all at once.
-      const empty = runs.filter((run) => live(run) && run.buffer.length === 0);
+      // Strict round-robin can only reach the next `need` live stores this page, so fill the
+      // empty ones among them, all at once. Stores further on stay unvisited for later pages.
+      const need = query.limit - products.length;
+      const window: StoreRun[] = [];
+      for (let i = 0; i < runs.length && window.length < need; i++) {
+        const run = runs[(turn + i) % runs.length];
+        if (live(run)) window.push(run);
+      }
+      const empty = window.filter((run) => run.buffer.length === 0);
       if (empty.length) {
-        const liveCount = runs.filter(live).length;
-        const first = Math.max(1, Math.ceil((query.limit - products.length) / liveCount));
+        const first = Math.max(1, Math.ceil(need / window.length));
         await bounded(
           empty.map((run) => () => this.fetch(run, providerQuery, first)),
           this.concurrency,

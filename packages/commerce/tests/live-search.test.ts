@@ -314,3 +314,72 @@ test("stale data alone doesn't make a page partial; it shows in the store's outc
   assert.equal(result.stores[0].fetchedAt, new Date(fetchedAt).toISOString());
   assert.equal(result.products[0].fetchedAt, new Date(fetchedAt).toISOString());
 });
+
+test("only the stores round-robin will reach are fetched; the rest wait for later pages", async () => {
+  const stores = Array.from({ length: 100 }, (_, i) => store(i + 1, 5));
+  const result = await search(service(stores), { limit: 20 });
+  assert.deepEqual(
+    names(result),
+    stores.slice(0, 20).map((_, i) => `${i + 1}00`),
+  );
+  assert.deepEqual(
+    stores.map((fake) => fake.calls.length),
+    [...Array(20).fill(1), ...Array(80).fill(0)],
+  );
+  assert.ok(stores.slice(0, 20).every((fake) => fake.calls[0].first === 1), "ceil(20 / 20)");
+  assert.equal(result.stores.length, 20, "only fetched stores report an outcome");
+  assert.equal(result.hasMore, true);
+});
+
+test("paging continues the rotation through unvisited stores in the cursor's order", async () => {
+  const stores = Array.from({ length: 10 }, (_, i) => store(i + 1, 2));
+  const live = service(stores);
+  const seen: string[] = [];
+  let cursor: string | undefined;
+  for (let page = 0; page < 20; page++) {
+    const result = await search(live, { limit: 3, cursor });
+    seen.push(...names(result));
+    // The provider order changes mid-search; the resumed session keeps the cursor's order.
+    if (page === 0) stores.reverse();
+    if (!result.hasMore) break;
+    cursor = result.nextCursor!;
+  }
+  assert.deepEqual(seen, [
+    ...Array.from({ length: 10 }, (_, i) => `${i + 1}00`),
+    ...Array.from({ length: 10 }, (_, i) => `${i + 1}01`),
+  ]);
+  assert.ok(stores.every((fake) => fake.calls.length === 2), "each page fetched at most once");
+});
+
+test("empty stores pass their turn to the next stores in the rotation", async () => {
+  const stores = [store(1, 0), store(2, 0), store(3, 3), store(4, 3), store(5, 3)];
+  const live = service(stores);
+  const first = await search(live, { limit: 2 });
+  assert.deepEqual(names(first), ["300", "400"]);
+  assert.deepEqual(
+    stores.map((fake) => fake.calls.length),
+    [1, 1, 1, 1, 0],
+  );
+  assert.equal(first.hasMore, true);
+
+  const second = await search(live, { limit: 2, cursor: first.nextCursor! });
+  assert.deepEqual(names(second), ["500", "301"]);
+  assert.equal(stores[0].calls.length, 1, "an exhausted store is not asked again");
+});
+
+test("a failed store hands its turn on and is retried in rotation on a later page", async () => {
+  const stores = [store(1, 3), store(2, 3), store(3, 3), store(4, 3)];
+  stores[0].fail = true;
+  const live = service(stores);
+  const first = await search(live, { limit: 2 });
+  assert.deepEqual(names(first), ["200", "300"]);
+  assert.equal(stores[3].calls.length, 0);
+  assert.equal(first.partial, true);
+  assert.deepEqual(first.unavailable, [{ merchantId: stores[0].merchant.id, name: "Store 1" }]);
+  assert.equal(first.hasMore, true);
+
+  stores[0].fail = false;
+  const second = await search(live, { limit: 3, cursor: first.nextCursor! });
+  assert.deepEqual(names(second), ["400", "100", "201"], "store 1 resumes from its start");
+  assert.equal(second.partial, false);
+});

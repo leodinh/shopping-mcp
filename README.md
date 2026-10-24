@@ -16,7 +16,7 @@ More docs in [`docs/`](docs):
 
 ## Local setup
 
-Prerequisites: Node.js 22+, pnpm, PostgreSQL 17+, and a Shopify app for connecting stores (see [Shopify app setup](#shopify-app-setup)).
+Prerequisites: Node.js 22+, pnpm, PostgreSQL 17+, and a Shopify app for connecting stores (see [Shopify app setup](#shopify-app-setup)). Optional: Docker, for Redis (the search cache).
 
 1. Create an empty `shopping-mcp` database.
 2. Install and configure:
@@ -31,6 +31,7 @@ Prerequisites: Node.js 22+, pnpm, PostgreSQL 17+, and a Shopify app for connecti
 
    ```sh
    pnpm run db:migrate
+   docker compose up -d redis   # optional: the search cache (REDIS_URL)
    pnpm dev
    ```
 
@@ -42,23 +43,27 @@ Then open http://localhost:3000/login and sign in. Without `RESEND_API_KEY` the 
 
 All variables live in the root `.env`.
 
-| Variable                                    | Required | Purpose                                                                                                                                                                                        |
-| ------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                              | yes      | PostgreSQL URL including the user, e.g. `postgresql://USER@localhost:5432/shopping-mcp`. Add `:PASSWORD` only if the server needs one.                                                         |
-| `SESSION_SECRET`                            | legacy   | Only decrypts Shopify credentials stored before `CREDENTIALS_KEY` existed (re-encrypted the next time they're used). Not used for sign-in.                                                     |
-| `CREDENTIALS_KEY`                           | yes      | Encrypts stored Shopify tokens. **Must not change after use** (see below).                                                                                                                     |
-| `SHOPIFY_API_KEY`                           | yes      | Your Shopify app's client ID.                                                                                                                                                                  |
-| `SHOPIFY_API_SECRET`                        | yes      | Your Shopify app's client secret. Verifies OAuth callbacks (HMAC) and exchanges tokens.                                                                                                        |
-| `SHOPIFY_SCOPES`                            | no       | Requested scopes; default `read_products`.                                                                                                                                                     |
-| `API_PORT`                                  | no       | API port; default `3001`.                                                                                                                                                                      |
-| `BETTER_AUTH_SECRET`                        | yes      | Signs Better Auth sessions and OAuth state (dashboard and MCP sign-in). Generate separately.                                                                                                   |
-| `RESEND_API_KEY`                            | no       | Resend API key (send-only) for magic-link emails. Unset: links are printed to the API console (local development).                                                                             |
-| `EMAIL_FROM`                                | no       | Sender, on a domain verified in Resend. Default `onboarding@resend.dev` only delivers to your own Resend account email.                                                                        |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | no       | Enable "Continue with Google". Register `<API_ORIGIN>/api/auth/callback/google` as an authorized redirect URI. Signing in with Google and by email link for the same address is the same user. |
-| `WEB_ORIGIN`                                | no       | Web UI origin (CORS, trusted origin, login/consent pages); default `http://localhost:3000`.                                                                                                    |
-| `API_ORIGIN`                                | no       | Public API origin: Better Auth issuer (`<origin>/api/auth`) and MCP resource (`<origin>/api/mcp`); default `http://localhost:3001`.                                                            |
-| `COOKIE_DOMAIN`                             | no       | Parent domain for cross-subdomain session cookies (e.g. `leodev.online` for `app.` / `api.` siblings); unset on localhost.                                                                     |
-| `NEXT_PUBLIC_API_ORIGIN`                    | no       | API origin the web UI calls; default `http://localhost:3001`.                                                                                                                                  |
+| Variable                                              | Required | Purpose                                                                                                                                                                                        |
+| ----------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                        | yes      | PostgreSQL URL including the user, e.g. `postgresql://USER@localhost:5432/shopping-mcp`. Add `:PASSWORD` only if the server needs one.                                                         |
+| `SESSION_SECRET`                                      | legacy   | Only decrypts Shopify credentials stored before `CREDENTIALS_KEY` existed (re-encrypted the next time they're used). Not used for sign-in.                                                     |
+| `CREDENTIALS_KEY`                                     | yes      | Encrypts stored Shopify tokens. **Must not change after use** (see below).                                                                                                                     |
+| `SHOPIFY_API_KEY`                                     | yes      | Your Shopify app's client ID.                                                                                                                                                                  |
+| `SHOPIFY_API_SECRET`                                  | yes      | Your Shopify app's client secret. Verifies OAuth callbacks (HMAC) and exchanges tokens.                                                                                                        |
+| `SHOPIFY_SCOPES`                                      | no       | Requested scopes; default `read_products`.                                                                                                                                                     |
+| `API_PORT`                                            | no       | API port; default `3001`.                                                                                                                                                                      |
+| `BETTER_AUTH_SECRET`                                  | yes      | Signs Better Auth sessions and OAuth state (dashboard and MCP sign-in). Generate separately.                                                                                                   |
+| `RESEND_API_KEY`                                      | no       | Resend API key (send-only) for magic-link emails. Unset: links are printed to the API console (local development).                                                                             |
+| `EMAIL_FROM`                                          | no       | Sender, on a domain verified in Resend. Default `onboarding@resend.dev` only delivers to your own Resend account email.                                                                        |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`           | no       | Enable "Continue with Google". Register `<API_ORIGIN>/api/auth/callback/google` as an authorized redirect URI. Signing in with Google and by email link for the same address is the same user. |
+| `WEB_ORIGIN`                                          | no       | Web UI origin (CORS, trusted origin, login/consent pages); default `http://localhost:3000`.                                                                                                    |
+| `API_ORIGIN`                                          | no       | Public API origin: Better Auth issuer (`<origin>/api/auth`) and MCP resource (`<origin>/api/mcp`); default `http://localhost:3001`.                                                            |
+| `COOKIE_DOMAIN`                                       | no       | Parent domain for cross-subdomain session cookies (e.g. `leodev.online` for `app.` / `api.` siblings); unset on localhost.                                                                     |
+| `NEXT_PUBLIC_API_ORIGIN`                              | no       | API origin the web UI calls; default `http://localhost:3001`.                                                                                                                                  |
+| `REDIS_URL`                                           | no       | Redis for the search cache, e.g. `redis://localhost:6379` (`docker compose up -d redis`). Unset or down: every search asks the stores live.                                                    |
+| `SEARCH_CACHE_FRESH_S` / `SEARCH_CACHE_MAX_AGE_S`     | no       | A cached store page is fresh for 300s; it may serve as a stale fallback until 1800s after it was fetched, never later.                                                                         |
+| `SEARCH_STORE_TIMEOUT_MS`                             | no       | Deadline for one store's page, including waiting for another pod's fetch; default 5000.                                                                                                        |
+| `SEARCH_STORE_CONCURRENCY` / `SEARCH_POD_CONCURRENCY` | no       | Calls this pod makes at once to one store (default 4) and to all stores (default 32). Per pod, not cluster-wide.                                                                               |
 
 Generate each secret separately, e.g. `openssl rand -hex 32`. Changing `CREDENTIALS_KEY` makes stored Shopify tokens unreadable, and those stores must reconnect. Credentials encrypted before `CREDENTIALS_KEY` existed (with the old `SESSION_SECRET`-derived key) still decrypt and are re-encrypted on their next sync.
 
@@ -160,8 +165,16 @@ Search is **live and federated**: `LiveProductSearchService` (behind the `Produc
 1. **Fan-out.** Stores are queried concurrently (at most 8 at a time), each with a timeout (`SEARCH_STORE_TIMEOUT_MS`, default 5s). Each is first asked for `max(1, ceil(limit / stores))` products.
 2. **Merge.** Results are interleaved round-robin, so every merchant gets balanced exposure. Stores that still have results are asked again until the page is full or every store is exhausted. The rotation carries over between pages.
 3. **Paging.** `nextCursor` is stateless, opaque and HMAC-signed (key derived from `BETTER_AUTH_SECRET`). It holds each store's Shopify position and whether it's exhausted, the store order, whose turn is next, a fingerprint of the query and filters, a version, and a 30-minute expiry. A store's position advances only past products actually returned, so fetched but unreturned products come back on the next page. Each request re-checks the signature, expiry, parameters and which stores are still connected. Nothing is stored server-side.
-4. **Failures.** A store that errors or times out is listed in `unavailable`, and the page is marked `partial`. It keeps its position and is retried on the next page. An empty store is a success, not a failure. The search fails (503) only if every store tried fails; with no connected stores it returns an empty result.
-5. **Shopify.** Only products that are active and published to the online store are searchable. Search words are quoted, so text can never become a Shopify filter. `maxPrice` goes to Shopify's `price` filter, or with `country` (market prices) is checked after fetching. `inStock` (any variant for sale) and `currency` (the product's returned currency) are checked after fetching. Tokens are refreshed when used, under a per-store Postgres advisory lock, because Shopify refresh tokens work only once.
+4. **Failures.** A store that errors or times out with no usable data is listed in `unavailable`, and only then is the page `partial`. It keeps its position and is retried on the next page. An empty store is a success, not a failure. The search fails (503) only if every store tried fails; with no connected stores it returns an empty result.
+5. **Cache** (when `REDIS_URL` is set). Each store's page is cached in Redis, keyed by the store's connection generation (a reconnect starts empty) and everything that changes the answer (query, filters, `country`, `currency`, position, batch size). Only public product data is cached.
+   - **Fresh** (under 5 minutes): served without asking the store.
+   - **Otherwise** one pod fetches it: identical requests in a pod share one call, and across pods a Redis lock per page (unique token, TTL, atomic owner-checked release) lets only the holder ask the store. Others wait within their deadline for its page; they never fetch without the lock. At the deadline they use an eligible stale page or report the store unavailable.
+   - **Writes are guarded**: a holder whose lock expired, or whose data is older than what's stored, can't overwrite it.
+   - **Stale fallback**: when a store fails, a cached page up to 30 minutes old (since it was fetched) is served instead; never older, and only for stores connected right now.
+   - **Freshness is visible**: `stores[]` gives each store's `outcome` (`cache_hit`, `cache_miss`, `stale_fallback`, `provider_error`, `provider_timeout`) and `fetchedAt`, and every product has `fetchedAt`.
+   - **Redis is optional**: commands time out fast and never queue; on any Redis failure the store is fetched live (without writing), within the per-pod limits. The API connects at startup (so the first search can use the cache) and closes the connection on shutdown.
+   - Lookups (`get_product`, `compare_products`, `get_checkout`) are never cached. `get_checkout` validates the current offer live and refuses when the product is gone, sold out, or its store doesn't answer.
+6. **Shopify.** Only products that are active and published to the online store are searchable. Search words are quoted, so text can never become a Shopify filter. `maxPrice` goes to Shopify's `price` filter, or with `country` (market prices) is checked after fetching. `inStock` (any variant for sale) and `currency` (the product's returned currency) are checked after fetching. Tokens are refreshed when used, under a per-store Postgres advisory lock, because Shopify refresh tokens work only once.
 
 ### Shopify webhooks
 
@@ -185,10 +198,14 @@ Tests live in their owning workspace's `tests/` directory:
 
 - `apps/api/tests`: HTTP basics (signed-out dashboard) and the Store connection failure → status table. `integration/`: Shopify connect end to end over HTTP (signed in), MCP OAuth token checks, and JSON-RPC calls to `/api/mcp` plus REST search.
 - `apps/web/tests`: API URL helpers and profile response validation.
-- `packages/commerce/tests`: money (per-currency minor units), the Shopify provider (query building, normalization, filters), and live federated search (merge, refill, paging, cursors, failures, timeouts). `integration/`: Store connection, Shopify token refresh (including concurrent refresh), and webhooks against PostgreSQL.
+- `packages/commerce/tests`: money (per-currency minor units), the Shopify provider (query building, normalization, filters), the page cache (outcomes, stale-age boundaries, lock waiting and ownership, cache failures, per-pod limits; against an in-memory cache), checkout offers, and live federated search (merge, refill, paging, cursors, failures, timeouts). `integration/`: Store connection, Shopify token refresh (including concurrent refresh), and webhooks against PostgreSQL.
 - `packages/contracts/tests`: search and product-ID schemas.
 - `packages/config/tests`: environment helpers.
 - Root `tests/`: repository architecture boundaries only.
+
+Redis integration tests (`packages/commerce/tests/integration/redis-cache.test.ts`) run against a real Redis at `REDIS_URL`: pods racing for one page, slow lock holders, waiter deadlines, lock ownership and expiry, guarded writes, TTLs, and an unreachable Redis. Locally they're skipped without `REDIS_URL`; with `CI` set they're required.
+
+CI (`.github/workflows/ci.yml`) runs on pushes to `main` and on pull requests, with Postgres 17 and Redis 7 service containers: frozen install, migrate, typecheck, lint, `test`, `test:integration`, and the web build.
 
 Run one workspace with `pnpm --filter @shopping-mcp/api test` or `pnpm --filter @shopping-mcp/commerce test`. Root `pnpm test` runs all database-free suites.
 

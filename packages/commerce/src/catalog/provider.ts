@@ -35,7 +35,7 @@ export const externalProductSchema = z.object({
     .max(20),
 });
 
-export type ExternalProduct = Omit<CatalogProduct, "id" | "merchant"> &
+export type ExternalProduct = Omit<CatalogProduct, "id" | "merchant" | "fetchedAt"> &
   z.infer<typeof externalProductSchema>;
 
 /** One provider-side search: the provider translates what it can into its own query. */
@@ -71,6 +71,11 @@ export type ProviderMerchant = { id: string; name: string; slug: string };
 /** One connected store's live catalog. Credentials stay inside; callers see normalized products. */
 export interface ProductProvider {
   readonly merchant: ProviderMerchant;
+  /**
+   * Namespace for this provider's cached search pages, changing whenever cached pages must not be
+   * reused (e.g. the store reconnected). Absent: pages are never cached.
+   */
+  readonly cacheScope?: string;
   search(query: ProviderSearchQuery, signal: AbortSignal): Promise<ProviderPage>;
   /** The products that still exist and are searchable; missing IDs are simply absent. */
   get(

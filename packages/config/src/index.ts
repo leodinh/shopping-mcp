@@ -106,3 +106,33 @@ export function searchStoreTimeoutMs() {
   const value = Number(process.env.SEARCH_STORE_TIMEOUT_MS ?? 5000);
   return Number.isInteger(value) && value > 0 ? value : 5000;
 }
+
+/** Redis for the search cache; optional: without it every search asks the stores live. */
+export function redisUrl() {
+  return process.env.REDIS_URL || undefined;
+}
+
+function positiveInteger(name: string, fallback: number) {
+  const value = Number(process.env[name] ?? fallback);
+  return Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
+/** How long a cached store page counts as fresh; default 5 minutes. */
+export function searchCacheFreshMs() {
+  return positiveInteger("SEARCH_CACHE_FRESH_S", 300) * 1000;
+}
+
+/** Oldest a cached store page may be (since it was fetched) to serve as a stale fallback; 30 min. */
+export function searchCacheMaxAgeMs() {
+  return positiveInteger("SEARCH_CACHE_MAX_AGE_S", 1800) * 1000;
+}
+
+/** Calls this pod makes to one store at once (not cluster-wide); default 4. */
+export function searchStoreConcurrency() {
+  return positiveInteger("SEARCH_STORE_CONCURRENCY", 4);
+}
+
+/** Calls this pod makes to all stores at once (not cluster-wide); default 32. */
+export function searchPodConcurrency() {
+  return positiveInteger("SEARCH_POD_CONCURRENCY", 32);
+}

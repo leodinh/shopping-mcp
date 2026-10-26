@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: shopping-mcp
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+
+    # Test-only values: no real secrets. Redis integration tests are required here (CI=true).
+    env:
+      CI: true
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/shopping-mcp
+      REDIS_URL: redis://localhost:6379
+      BETTER_AUTH_SECRET: ci-better-auth-secret-32-characters-min
+      CREDENTIALS_KEY: ci-credentials-key-32-characters-minimum
+      SESSION_SECRET: ci-session-secret-32-characters-minimum
+      SHOPIFY_API_KEY: ci-shopify-key
+      SHOPIFY_API_SECRET: ci-shopify-secret
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.10.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:migrate
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm test:integration
+      - run: pnpm --filter @shopping-mcp/web build

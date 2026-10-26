@@ -100,6 +100,22 @@ export type CatalogProduct = {
   productUrl: string;
   variants: Array<{ id: string; title: string; price: Price; available: boolean }>;
   merchant: { id: string; name: string; slug: string };
+  /** When the store served this data (ISO). Search results may be cached; lookups are live. */
+  fetchedAt: string;
+};
+
+/**
+ * How a store's results on this page were obtained:
+ * `cache_hit` fresh from the cache; `cache_miss` fetched from the store now; `stale_fallback` the
+ * store didn't answer, older cached results (see `fetchedAt`) were used; `provider_error` /
+ * `provider_timeout` the store failed and its results are missing.
+ */
+export type StoreOutcome = {
+  merchantId: string;
+  name: string;
+  outcome: "cache_hit" | "cache_miss" | "stale_fallback" | "provider_error" | "provider_timeout";
+  /** When the store served the data used (ISO); null when it failed. */
+  fetchedAt: string | null;
 };
 
 /** A store that didn't answer for this page; its products may be missing. */
@@ -110,7 +126,9 @@ export type SearchResult = {
   /** Opaque; pass it back as `cursor` for the next page. Null on the last page. */
   nextCursor: string | null;
   hasMore: boolean;
-  /** True when some stores were unavailable, so this page may be missing their products. */
+  /** True only when some stores' results are missing (see `unavailable`); stale data isn't. */
   partial: boolean;
   unavailable: UnavailableStore[];
+  /** Per store searched on this page: how its results were obtained and how old they are. */
+  stores: StoreOutcome[];
 };

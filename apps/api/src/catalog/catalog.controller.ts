@@ -1,9 +1,10 @@
-import { Controller, Get, Query, Res } from "@nestjs/common";
+import { Controller, Get, Param, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
 import { ZodError } from "zod";
-import { searchSchema } from "@shopping-mcp/contracts";
+import { productIdSchema, searchSchema } from "@shopping-mcp/contracts";
 import {
   AllStoresUnavailable,
+  getProduct,
   InvalidCursor,
   searchProducts,
 } from "@shopping-mcp/commerce/catalog";
@@ -44,6 +45,40 @@ export class CatalogController {
         return;
       }
       console.error("Catalog search failed", error);
+      res.status(503).json({ error: "Catalog unavailable right now. Try again shortly." });
+    }
+  }
+
+  /** One product, live from its store: the product page's data. */
+  @Get(":id")
+  async product(
+    @Param("id") id: string,
+    @Query("country") country: string | undefined,
+    @Res() res: Response,
+  ) {
+    if (!productIdSchema.safeParse(id).success) {
+      res.status(400).json({ error: "Not a product ID" });
+      return;
+    }
+    if (country !== undefined && !/^[A-Z]{2}$/.test(country)) {
+      res.status(400).json({ error: "Invalid country" });
+      return;
+    }
+    try {
+      const { product, unavailable } = await getProduct(id, { country });
+      console.log("product", product);
+      console.log("unavailable", unavailable);
+      if (unavailable.length) {
+        res.status(503).json({ error: "The store didn't answer. Try again shortly." });
+        return;
+      }
+      if (!product) {
+        res.status(404).json({ error: "Product not found" });
+        return;
+      }
+      res.json({ product });
+    } catch (error) {
+      console.error("Product lookup failed", error);
       res.status(503).json({ error: "Catalog unavailable right now. Try again shortly." });
     }
   }

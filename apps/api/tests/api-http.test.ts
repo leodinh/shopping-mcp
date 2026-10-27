@@ -39,3 +39,14 @@ test("credentialed requests from WEB_ORIGIN receive CORS allow headers", async (
     await app.close();
   }
 });
+
+test("GET /api/products/:id rejects what isn't a product ID with 400", async () => {
+  const app = await createApi();
+  try {
+    const response = await request(app.getHttpServer()).get("/api/products/not-an-id");
+    assert.equal(response.status, 400);
+    assert.equal(response.body.error, "Not a product ID");
+  } finally {
+    await app.close();
+  }
+});

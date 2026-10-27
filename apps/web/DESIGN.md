@@ -99,7 +99,7 @@ Shopping with Agent prints like a till receipt. Every surface is white paper wit
 
 Content is organized with receipt grammar. Account facts read as itemized lines (LABEL, then a dotted leader, then a right-aligned value). Stores are numbered lines (01, 02) with a bracketed status word in a fixed-width column. Sections are separated by dashed "tear" rules. Pages that hold a task (login, consent, profile) sit on a slip: a white panel with a 1px black edge.
 
-Motion has one authored moment. The slip prints in, store lines feed in after it, status words stamp. Everything else is a 150ms state change.
+Motion has one authored moment. The slip prints in, store lines feed in after it, status words stamp. Everything else is a 150ms state change. On results, a fetched page's items feed in (staggered, capped at the fourth), a page shown again from the cache only stamps, and switching GRID / LIST morphs each item into place with a view transition (280ms, the entrance curve; skipped with reduced motion).
 
 **Key Characteristics:**
 - One face, one ink, one paper. Gray is only for secondary text and the hover wash.
@@ -150,7 +150,7 @@ Strict monochrome: paper, ink, and one gray. Color never carries meaning by itse
 
 Single column, centered. Horizontal gutters are 20px, widening to 32px from the `sm` breakpoint (640px). The shell is a full-height column: a header (56px, 64px from `sm`) with a 1px bottom rule, the page, then a footer (48px) with a 1px top rule and right-aligned links.
 
-Measures by surface: login and consent slips are 28rem wide; the profile slip is 42rem; the home conversation is 48rem; docs and privacy are 36rem. Task slips sit on 48px vertical page padding and pad 24px inside (40px from `sm`). Login and consent center the slip in the viewport; profile top-aligns it so a long store list can scroll.
+Measures by surface: login and consent slips are 28rem wide; the profile slip is 42rem; the home conversation is 48rem; docs and privacy are 36rem; results and product pages are 72rem (the product slip is 28rem beside the gallery from `lg`). Task slips sit on 48px vertical page padding and pad 24px inside (40px from `sm`). Login and consent center the slip in the viewport; profile top-aligns it so a long store list can scroll.
 
 Vertical rhythm inside a slip: headline, then 32px to the first section, 10px between itemized lines, 32px around each tear rule. Every interactive control is at least 48px tall.
 
@@ -203,6 +203,22 @@ The page's receipt: a white panel with a 1px ink edge holding one task. It print
 
 ### Login divider
 Two 1px ink lines with a muted caps OR between them, separating the email form from CONTINUE WITH GOOGLE.
+
+### Results page
+An assistant's search, shown so the shopper can look through it: never a catalog to browse, so there is no search box and bare `/products` is a slip that says where results come from.
+- **Header:** RESULTS FOR “QUERY” in headline, "Results from connected stores." in intro under it.
+- **Filters:** one row from `lg` (store, max price, currency, IN STOCK ONLY box, APPLY), two columns below it. The stock box is a 48px outlined label, like a field. Selects are fields with the stroked chevron. Errors and CLEAR FILTERS share the reserved line under the row.
+- **Toolbar:** `PAGE 02 · 24 PRODUCTS` on the left (weight, then muted count; "Loading products…" while fetching), a GRID / LIST pair of buttons on the right (active is the ink button), over a 1px rule.
+- **Grid:** cells share 1px ink rules, 2 columns, 3 from `sm`, 4 from `lg`. A cell is the framed image, the name in caps at 600 (up to 3 lines), the store in muted label, then the price at 600 with [SOLD OUT] when nothing can be bought. Hover takes the store-row wash (60%).
+- **List:** the same item as a row under the toolbar rule: framed image (80px, 128px from `sm`) left; name and price on one line, store · options · status in muted label, then a 2–3 line muted excerpt.
+- **Notices:** a dashed box with a bracketed caps word: [PARTIAL] (a store didn't answer), [EARLIER] (a store's cached results and their age), [RESTARTED] (the search expired). Empty and failed pages use the same dashed box, with a heading in label at 600 and one action.
+- **Pagination:** PREVIOUS (secondary) and NEXT (primary) with stroked arrows, `PAGE 02` muted between them, over a 1px rule. No totals: live search has none.
+- **Skeleton:** the active view's own geometry: dashed muted image frames and dotted blank lines where text will print, pulsing (no pulse with reduced motion).
+
+### Product page
+- **Gallery:** the framed main image; a row of square thumbnails below (5, 6 from `sm`). The chosen one has a 1px inner ring that doubles its edge; the others sit at 60% and lift to full on hover. Sticky beside the slip from `lg`.
+- **Product slip:** store in muted label, name in headline, price at 700 with [IN STOCK] / [SOLD OUT] across from it, a full-width PURCHASE button (stroked external arrow) to the store's own page, and a muted line naming that site. Then tear-separated itemized lines (brand, SKU, barcode), OPTIONS as itemized lines (title, leader, price), and the description in intro with its line breaks kept.
+- **Missing states:** "Product not found" and "The store didn't answer" (with TRY AGAIN) are 28rem slips under the back link; a missing or broken photo keeps its frame and says NO IMAGE.
 
 ## Do's and Don'ts
 

@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { productIdSchema } from "@shopping-mcp/contracts";
+import { productIdSchema, productPageUrl } from "@shopping-mcp/contracts";
+import { webOrigin } from "@shopping-mcp/config";
 import { getProduct } from "@shopping-mcp/commerce/catalog";
 import { catalogToolError, dataResult, textResult } from "./responses";
 
@@ -23,7 +24,9 @@ export async function runGetProductTool(input: z.infer<typeof getProductInput>) 
     const { product, unavailable } = await getProduct(input.productId, input);
     if (unavailable.length) return textResult("The store didn't answer. Try again shortly.", true);
     if (!product) return textResult("Product not found.", true);
-    return dataResult({ product });
+    return dataResult({
+      product: { ...product, pageUrl: productPageUrl(webOrigin(), product.id) },
+    });
   } catch (error) {
     return catalogToolError(error);
   }

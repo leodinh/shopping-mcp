@@ -4,6 +4,8 @@
 
 - `/`: shopper-facing home page with an example conversation and the `shopping-mcp.json` download.
 - `/docs`: how to add Shopping MCP to an assistant.
+- `/products`: the results of a search an assistant ran, linked from its answer (`browseUrl`). Not a storefront: there is no search box, and without a search it explains where results come from. The shopper can filter by store, max price (with its currency) and stock, switch between grid and list, and page with Previous/Next. The URL keeps the search, filters, page and view.
+- `/products/[id]`: one product, live from its store (`pageUrl`): images, price, options, description, and **Purchase**, which opens the product on the store's own site. Checkout happens there.
 - `/profile`: a signed-in user's account and connected stores: status (**Connected** or **Disconnected**, from the connection alone), **Disconnect** (search stops reaching the store, after an inline confirmation), and **Connect store**. One user can own several stores. Protected: signed out, it redirects to the home page.
 - `/login`: Continue with Google, or an email magic link; shared by the dashboard and MCP clients' OAuth.
 
@@ -56,7 +58,7 @@ All variables live in the root `.env`.
 | `RESEND_API_KEY`                                      | no       | Resend API key (send-only) for magic-link emails. Unset: links are printed to the API console (local development).                                                                             |
 | `EMAIL_FROM`                                          | no       | Sender, on a domain verified in Resend. Default `onboarding@resend.dev` only delivers to your own Resend account email.                                                                        |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`           | no       | Enable "Continue with Google". Register `<API_ORIGIN>/api/auth/callback/google` as an authorized redirect URI. Signing in with Google and by email link for the same address is the same user. |
-| `WEB_ORIGIN`                                          | no       | Web UI origin (CORS, trusted origin, login/consent pages); default `http://localhost:3000`.                                                                                                    |
+| `WEB_ORIGIN`                                          | no       | Web UI origin (CORS, trusted origin, login/consent pages, and the `browseUrl` / `pageUrl` links in tool results); default `http://localhost:3000`.                                             |
 | `API_ORIGIN`                                          | no       | Public API origin: Better Auth issuer (`<origin>/api/auth`) and MCP resource (`<origin>/api/mcp`); default `http://localhost:3001`.                                                            |
 | `COOKIE_DOMAIN`                                       | no       | Parent domain for cross-subdomain session cookies (e.g. `leodev.online` for `app.` / `api.` siblings); unset on localhost.                                                                     |
 | `NEXT_PUBLIC_API_ORIGIN`                              | no       | API origin the web UI calls; default `http://localhost:3001`.                                                                                                                                  |
@@ -109,7 +111,7 @@ Endpoint: `http://127.0.0.1:3001/api/mcp`. `GET /mcp.json` downloads a `shopping
 | `get_checkout`     | `getCheckout()`     | Look up a merchant checkout URL; currently returns `supported: false`             |
 | `get_account`      | `getAccount()`      | The signed-in User and their stores; requires sign-in                             |
 
-Tool inputs use the catalog's own schemas from `packages/contracts`, so a tool never advertises input the catalog would reject. `search_products` takes real types: `maxPrice` is a number in major units (`19.99` = 19.99 USD) and requires `currency`; `inStock` is a boolean; `country` (ISO 3166) prices products for the buyer's market. A product ID is `shopify:<merchantId>:<productId>`.
+Tool inputs use the catalog's own schemas from `packages/contracts`, so a tool never advertises input the catalog would reject. `search_products` also returns `browseUrl`, the web page showing the same search (query and filters, never the cursor), and every product from `search_products`, `get_product` and `compare_products` carries `pageUrl`, its product page. Both are built from `WEB_ORIGIN`. `search_products` takes real types: `maxPrice` is a number in major units (`19.99` = 19.99 USD) and requires `currency`; `inStock` is a boolean; `country` (ISO 3166) prices products for the buyer's market. A product ID is `shopify:<merchantId>:<productId>`.
 
 ## HTTP API
 
@@ -117,10 +119,13 @@ Tool inputs use the catalog's own schemas from `packages/contracts`, so a tool n
 curl 'http://127.0.0.1:3001/api/products?q=black+backpack&currency=USD&maxPrice=100'
 curl 'http://127.0.0.1:3001/api/products?inStock=true&limit=5'
 curl 'http://127.0.0.1:3001/api/products?inStock=true&limit=5&cursor=<nextCursor>'
+curl 'http://127.0.0.1:3001/api/products/shopify%3A<merchantId>%3A<productId>'
 curl 'http://127.0.0.1:3001/api/merchants'
 ```
 
-`GET /api/products` accepts `q` (up to 200 characters), optional `merchantId` (UUID), `country` (ISO 3166, e.g. `CA`), `currency` (ISO 4217; only products priced in it are returned), `maxPrice` (non-negative number in major units; requires `currency`), `inStock` (`true`/`false`), `limit` (1–100, default 24), and `cursor`. It returns `{ products, nextCursor, hasMore, partial, unavailable }`; for the next page, send the same parameters plus `cursor=<nextCursor>`. There is no total: it can't be computed cheaply across live stores. Each product has its ID, merchant, name, description, `price { amountMinor, currency }` (its cheapest variant), `available`, `brand`, `gtin`, `sku`, images, product URL and up to 20 variants. Invalid filters or a bad cursor return 400; 503 means no store could be reached. The controller only converts query strings into the same typed search the MCP tool uses.
+`GET /api/products` accepts `q` (up to 200 characters), optional `merchantId` (UUID), `country` (ISO 3166, e.g. `CA`), `currency` (ISO 4217; only products priced in it are returned), `maxPrice` (non-negative number in major units; requires `currency`), `inStock` (`true`/`false`), `limit` (1–100, default 24), and `cursor`. It returns `{ products, nextCursor, hasMore, partial, unavailable, stores }`; for the next page, send the same parameters plus `cursor=<nextCursor>`. There is no total: it can't be computed cheaply across live stores. Each product has its ID, merchant, name, description, `price { amountMinor, currency }` (its cheapest variant), `available`, `brand`, `gtin`, `sku`, images, product URL and up to 20 variants. Invalid filters or a bad cursor return 400; 503 means no store could be reached. The controller only converts query strings into the same typed search the MCP tool uses.
+
+`GET /api/products/:id` returns `{ product }`, read live from its store (optional `country` for market prices). A malformed ID returns 400, a product that no longer exists 404, and a store that didn't answer 503. The product page uses it; it is never cached.
 
 Prices are in each currency's own minor units (cents for USD, none for JPY, three digits for KWD). The API filters by currency; it never converts between currencies.
 
@@ -141,7 +146,7 @@ This is a **pnpm workspace**, not a distributed commerce backend. Business opera
 - `packages/commerce`: catalog search (the `ProductProvider` contract and live federated search), merchants, accounts, Store connection (Shopify OAuth), and the Shopify provider.
 - `packages/config`: server-only environment helpers.
 - `apps/api`: Nest HTTP controllers, cookies, OAuth responses, and MCP tools.
-- `apps/web`: shopper, docs, and profile UI only.
+- `apps/web`: shopper, docs, results and product pages, and profile UI only. Results and product pages read the HTTP API; they never call Shopify.
 
 ### Data model
 
@@ -162,7 +167,7 @@ Both return typed outcomes (`{ ok: false, reason }`); the API maps each reason t
 
 Search is **live and federated**: `LiveProductSearchService` (behind the `ProductSearchService` interface) asks every enabled store at once, through one `ProductProvider` per store.
 
-1. **Fan-out.** Stores are queried concurrently (at most 8 at a time), each with a timeout (`SEARCH_STORE_TIMEOUT_MS`, default 5s). Each is first asked for `max(1, ceil(limit / stores))` products.
+1. **Fan-out.** Only the stores a page can reach are asked: round-robin takes one product per store per turn, so a page of `limit` products needs at most the next `limit` stores in rotation. Those are queried concurrently (at most 8 at a time), each with a timeout (`SEARCH_STORE_TIMEOUT_MS`, default 5s), and asked for `max(1, ceil(limit / stores asked))` products. Stores further along stay unvisited and are reached on later pages; one that fails or comes back empty hands its turn to the next. A new search visits stores in `orderStores()` order (the connection order for now); a resumed one keeps the cursor's order.
 2. **Merge.** Results are interleaved round-robin, so every merchant gets balanced exposure. Stores that still have results are asked again until the page is full or every store is exhausted. The rotation carries over between pages.
 3. **Paging.** `nextCursor` is stateless, opaque and HMAC-signed (key derived from `BETTER_AUTH_SECRET`). It holds each store's Shopify position and whether it's exhausted, the store order, whose turn is next, a fingerprint of the query and filters, a version, and a 30-minute expiry. A store's position advances only past products actually returned, so fetched but unreturned products come back on the next page. Each request re-checks the signature, expiry, parameters and which stores are still connected. Nothing is stored server-side.
 4. **Failures.** A store that errors or times out with no usable data is listed in `unavailable`, and only then is the page `partial`. It keeps its position and is retried on the next page. An empty store is a success, not a failure. The search fails (503) only if every store tried fails; with no connected stores it returns an empty result.
@@ -196,10 +201,10 @@ Do not expose this development app to the public internet without auth. Provider
 
 Tests live in their owning workspace's `tests/` directory:
 
-- `apps/api/tests`: HTTP basics (signed-out dashboard) and the Store connection failure → status table. `integration/`: Shopify connect end to end over HTTP (signed in), MCP OAuth token checks, and JSON-RPC calls to `/api/mcp` plus REST search.
-- `apps/web/tests`: API URL helpers and profile response validation.
+- `apps/api/tests`: HTTP basics (signed-out dashboard, invalid search parameters and product IDs) and the Store connection failure → status table. `integration/`: Shopify connect end to end over HTTP (signed in), MCP OAuth token checks, and JSON-RPC calls to `/api/mcp` plus REST search.
+- `apps/web/tests`: API URL helpers, profile response validation, and the results and product pages: their URLs, the per-tab page cache (cached pages, cursor reuse, expiry, restarts), price formatting per currency, purchase-link checks, and response parsing.
 - `packages/commerce/tests`: money (per-currency minor units), the Shopify provider (query building, normalization, filters), the page cache (outcomes, stale-age boundaries, lock waiting and ownership, cache failures, per-pod limits; against an in-memory cache), checkout offers, and live federated search (merge, refill, paging, cursors, failures, timeouts). `integration/`: Store connection, Shopify token refresh (including concurrent refresh), and webhooks against PostgreSQL.
-- `packages/contracts/tests`: search and product-ID schemas.
+- `packages/contracts/tests`: search and product-ID schemas, and results-page and product-page URLs.
 - `packages/config/tests`: environment helpers.
 - Root `tests/`: repository architecture boundaries only.
 

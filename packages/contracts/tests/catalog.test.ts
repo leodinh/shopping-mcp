@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import {
+  browseUrl,
   formatProductId,
+  productPageUrl,
   parseProductId,
   productIdsSchema,
   searchSchema,
@@ -67,4 +69,28 @@ test("compare takes 2–5 distinct product IDs, case-insensitively", () => {
   ]) {
     assert.equal(productIdsSchema.safeParse(ids).success, false);
   }
+});
+
+test("a results page URL carries the search's filters, never its cursor, page size or defaults", () => {
+  const query = searchSchema.parse({
+    q: "rain jacket",
+    currency: "USD",
+    maxPrice: 120,
+    inStock: true,
+    limit: 50,
+    cursor: "abc",
+  });
+  assert.equal(
+    browseUrl("https://shop.example", query),
+    "https://shop.example/products?q=rain+jacket&currency=USD&maxPrice=120&inStock=true",
+  );
+  assert.equal(
+    browseUrl("https://shop.example", searchSchema.parse({})),
+    "https://shop.example/products",
+  );
+  const id = formatProductId({ provider: "shopify", merchantId: randomUUID(), externalId: "42" });
+  assert.equal(
+    productPageUrl("https://shop.example", id),
+    `https://shop.example/products/${encodeURIComponent(id)}`,
+  );
 });

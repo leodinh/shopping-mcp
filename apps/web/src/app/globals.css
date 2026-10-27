@@ -109,6 +109,17 @@
     }
   }
 
+  /* Grid ⇄ list: each product morphs to its new place, on the same curve as the entrances. */
+  ::view-transition-group(*) {
+    animation-duration: 280ms;
+    animation-timing-function: var(--ease-out-expo);
+  }
+
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 180ms;
+  }
+
   /* Reduced motion keeps every fade (state stays legible) and drops all travel. */
   @media (prefers-reduced-motion: reduce) {
     /* Swap the travelling entrances for pure fades: the keyframes themselves are unlayered. */
@@ -121,6 +132,13 @@
     *::before,
     *::after {
       scroll-behavior: auto !important;
+    }
+
+    /* The view switch is skipped in script too; this covers a transition already running. */
+    ::view-transition-group(*),
+    ::view-transition-old(*),
+    ::view-transition-new(*) {
+      animation: none !important;
     }
   }
 }

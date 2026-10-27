@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { productIdsSchema } from "@shopping-mcp/contracts";
+import { productIdsSchema, productPageUrl } from "@shopping-mcp/contracts";
+import { webOrigin } from "@shopping-mcp/config";
 import { compareProducts } from "@shopping-mcp/commerce/catalog";
 import { catalogToolError, dataResult } from "./responses";
 
@@ -21,7 +22,14 @@ export const compareProductsTool = {
 
 export async function runCompareProductsTool(input: z.infer<typeof compareProductsInput>) {
   try {
-    return dataResult(await compareProducts(input.productIds, input));
+    const result = await compareProducts(input.productIds, input);
+    return dataResult({
+      ...result,
+      products: result.products.map((product) => ({
+        ...product,
+        pageUrl: productPageUrl(webOrigin(), product.id),
+      })),
+    });
   } catch (error) {
     return catalogToolError(error);
   }

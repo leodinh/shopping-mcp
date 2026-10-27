@@ -80,29 +80,36 @@ export const productIdsSchema = z
   );
 
 /** An amount in the currency's minor units (cents; yen have none; dinars have three). */
-export type Price = { amountMinor: number; currency: string };
+export const priceSchema = z.object({
+  amountMinor: z.number().int().nonnegative(),
+  currency: z.string().regex(/^[A-Z]{3}$/),
+});
+export type Price = z.infer<typeof priceSchema>;
 
 /** Search API DTO: a product as its store serves it right now, plus its merchant. */
-export type CatalogProduct = {
-  id: string;
-  provider: "shopify";
-  externalId: string;
-  name: string;
-  description: string;
+export const catalogProductSchema = z.object({
+  id: z.string(),
+  provider: z.literal("shopify"),
+  externalId: z.string(),
+  name: z.string(),
+  description: z.string(),
   /** The cheapest variant's price ("from"). */
-  price: Price;
+  price: priceSchema,
   /** At least one variant can be bought. */
-  available: boolean;
-  brand: string | null;
-  gtin: string | null;
-  sku: string | null;
-  images: string[];
-  productUrl: string;
-  variants: Array<{ id: string; title: string; price: Price; available: boolean }>;
-  merchant: { id: string; name: string; slug: string };
+  available: z.boolean(),
+  brand: z.string().nullable(),
+  gtin: z.string().nullable(),
+  sku: z.string().nullable(),
+  images: z.array(z.string()),
+  productUrl: z.string(),
+  variants: z.array(
+    z.object({ id: z.string(), title: z.string(), price: priceSchema, available: z.boolean() }),
+  ),
+  merchant: z.object({ id: z.string(), name: z.string(), slug: z.string() }),
   /** When the store served this data (ISO). Search results may be cached; lookups are live. */
-  fetchedAt: string;
-};
+  fetchedAt: z.string(),
+});
+export type CatalogProduct = z.infer<typeof catalogProductSchema>;
 
 /**
  * How a store's results on this page were obtained:
@@ -110,25 +117,66 @@ export type CatalogProduct = {
  * store didn't answer, older cached results (see `fetchedAt`) were used; `provider_error` /
  * `provider_timeout` the store failed and its results are missing.
  */
-export type StoreOutcome = {
-  merchantId: string;
-  name: string;
-  outcome: "cache_hit" | "cache_miss" | "stale_fallback" | "provider_error" | "provider_timeout";
+export const storeOutcomeSchema = z.object({
+  merchantId: z.string(),
+  name: z.string(),
+  outcome: z.enum([
+    "cache_hit",
+    "cache_miss",
+    "stale_fallback",
+    "provider_error",
+    "provider_timeout",
+  ]),
   /** When the store served the data used (ISO); null when it failed. */
-  fetchedAt: string | null;
-};
+  fetchedAt: z.string().nullable(),
+});
+export type StoreOutcome = z.infer<typeof storeOutcomeSchema>;
 
 /** A store that didn't answer for this page; its products may be missing. */
-export type UnavailableStore = { merchantId: string; name: string };
+export const unavailableStoreSchema = z.object({ merchantId: z.string(), name: z.string() });
+export type UnavailableStore = z.infer<typeof unavailableStoreSchema>;
 
-export type SearchResult = {
-  products: CatalogProduct[];
+export const searchResultSchema = z.object({
+  products: z.array(catalogProductSchema),
   /** Opaque; pass it back as `cursor` for the next page. Null on the last page. */
-  nextCursor: string | null;
-  hasMore: boolean;
+  nextCursor: z.string().nullable(),
+  hasMore: z.boolean(),
   /** True only when some stores' results are missing (see `unavailable`); stale data isn't. */
-  partial: boolean;
-  unavailable: UnavailableStore[];
+  partial: z.boolean(),
+  unavailable: z.array(unavailableStoreSchema),
   /** Per store searched on this page: how its results were obtained and how old they are. */
-  stores: StoreOutcome[];
+  stores: z.array(storeOutcomeSchema),
+});
+export type SearchResult = z.infer<typeof searchResultSchema>;
+
+/** `GET /api/products/:id`: one product, live from its store. */
+export const productResponseSchema = z.object({ product: catalogProductSchema });
+
+// The search parameters a results page carries in its URL: the HTTP API's own names, minus the
+// cursor (large, short-lived) and the page size.
+const BROWSE_KEYS = ["q", "merchantId", "country", "currency", "maxPrice", "inStock"] as const;
+
+export type BrowseKey = (typeof BROWSE_KEYS)[number];
+export const browseKeys: readonly BrowseKey[] = BROWSE_KEYS;
+
+/**
+ * A search as URL parameters, defaults left out: the results page's URL and its API calls. Takes
+ * real types (the API's search) or the URL's own strings (the web page), with the same result.
+ */
+export function searchParams(query: Partial<Record<BrowseKey, string | number | boolean>>) {
+  const params = new URLSearchParams();
+  for (const key of BROWSE_KEYS) {
+    const value = query[key];
+    if (value === undefined || value === "" || value === false || value === "false") continue;
+    params.set(key, String(value));
+  }
+  return params;
+}
+
+/** Where a shopper can see a search's results or a product, on the web origin. */
+export const browseUrl = (webOrigin: string, query: Parameters<typeof searchParams>[0]) => {
+  const params = searchParams(query).toString();
+  return `${webOrigin}/products${params ? `?${params}` : ""}`;
 };
+export const productPageUrl = (webOrigin: string, id: string) =>
+  `${webOrigin}/products/${encodeURIComponent(id)}`;
